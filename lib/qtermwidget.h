@@ -211,6 +211,16 @@ public:
      */
     int getPtySlaveFd() const override;
 
+#ifdef QTERMWIDGET_HAVE_QSERIALPORT
+    /** Open a serial device inside this terminal widget. Returns true on success. */
+    bool openSerial(const QString &devicePath,
+                    int baudRate = 115200,
+                    int dataBits = 8,
+                    int stopBits = 1,
+                    int parity = 0,
+                    bool flowControl = false);
+#endif
+
     /**
      * Sets the shape of the keyboard cursor.  This is the cursor drawn
      * at the position in the terminal where keyboard input will appear.

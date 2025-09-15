@@ -733,6 +733,19 @@ int QTermWidget::getPtySlaveFd() const
     return m_impl->m_session->getPtySlaveFd();
 }
 
+#ifdef QTERMWIDGET_HAVE_QSERIALPORT
+bool QTermWidget::openSerial(const QString &devicePath,
+                             int baudRate,
+                             int dataBits,
+                             int stopBits,
+                             int parity,
+                             bool flowControl)
+{
+    if(!m_impl || !m_impl->m_session) return false;
+    return m_impl->m_session->runSerial(devicePath, baudRate, dataBits, stopBits, parity, flowControl);
+}
+#endif
+
 void QTermWidget::setKeyboardCursorShape(KeyboardCursorShape shape)
 {
     m_impl->m_terminalDisplay->setKeyboardCursorShape(shape);

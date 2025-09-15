@@ -39,6 +39,18 @@ find_package(Qt6Widgets "${QT_MINIMUM_VERSION}" REQUIRED)
 find_package(Qt6LinguistTools "${QT_MINIMUM_VERSION}" REQUIRED)
 find_package(lxqt2-build-tools ${LXQTBT_MINIMUM_VERSION} REQUIRED)
 
+# Optional SerialPort (direct serial device support)
+option(QTERMWIDGET_ENABLE_SERIAL "Enable serial device support via QSerialPort" ON)
+if(QTERMWIDGET_ENABLE_SERIAL)
+    find_package(Qt6 COMPONENTS SerialPort QUIET)
+    if(Qt6SerialPort_FOUND)
+        message(STATUS "qtermwidget: Serial support enabled")
+        set(QTERMWIDGET_HAVE_QSERIALPORT 1)
+    else()
+        message(STATUS "qtermwidget: Qt6 SerialPort not found; serial support disabled")
+    endif()
+endif()
+
 if(USE_UTF8PROC)
     find_package(Utf8Proc REQUIRED)
 endif()
@@ -74,6 +86,7 @@ set(SRCS
     lib/kptydevice.cpp
     lib/kptyprocess.cpp
     lib/Pty.cpp
+    lib/SerialChannel.cpp
     lib/qtermwidget.cpp
     lib/Screen.cpp
     lib/ScreenWindow.cpp
@@ -95,6 +108,7 @@ set(HDRS
     lib/kptydevice.h
     lib/kptyprocess.h
     lib/Pty.h
+    lib/SerialChannel.h
     lib/qtermwidget.h
     lib/ScreenWindow.h
     lib/SearchBar.h
@@ -148,6 +162,12 @@ lxqt_translate_ts(QTERMWIDGET_QM
 
 add_library(${QTERMWIDGET_LIBRARY_NAME} SHARED ${SRCS} ${MOCS} ${UI_SRCS} ${QTERMWIDGET_QM})
 target_link_libraries(${QTERMWIDGET_LIBRARY_NAME} Qt6::Widgets)
+if(QTERMWIDGET_HAVE_QSERIALPORT)
+    target_compile_definitions(${QTERMWIDGET_LIBRARY_NAME}
+        PUBLIC QTERMWIDGET_HAVE_QSERIALPORT
+        PRIVATE QTERMWIDGET_HAVE_QSERIALPORT)
+    target_link_libraries(${QTERMWIDGET_LIBRARY_NAME} Qt6::SerialPort)
+endif()
 set_target_properties( ${QTERMWIDGET_LIBRARY_NAME} PROPERTIES
                        SOVERSION ${QTERMWIDGET_VERSION_MAJOR}
                        VERSION ${QTERMWIDGET_VERSION}
@@ -313,8 +333,26 @@ if(BUILD_EXAMPLE)
     set(EXAMPLE_SRC examples/cpp/main.cpp)
     add_executable(example ${EXAMPLE_SRC})
     target_link_libraries(example ${QTERMWIDGET_LIBRARY_NAME})
+    if(QTERMWIDGET_HAVE_QSERIALPORT)
+        add_executable(serialconsole examples/cpp/SerialConsole/main.cpp)
+        target_link_libraries(serialconsole ${QTERMWIDGET_LIBRARY_NAME})
+        install(TARGETS serialconsole RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+    endif()
 endif()
 # end of example application
+
+# example application RemoteTerm
+if(BUILD_EXAMPLE_REMOTETERM)
+    find_package(Qt6Network "${QT_MINIMUM_VERSION}" REQUIRED)
+    set(EXAMPLE_REMOTETERM_SRC examples/cpp/RemoteTerm/main.cpp
+                               examples/cpp/RemoteTerm/remoteterm.cpp)
+    set(EXAMPLE_REMOTETERM_HDRS examples/cpp/RemoteTerm/remoteterm.h)
+    qt6_wrap_cpp(EXAMPLE_REMOTETERM_MOCS ${EXAMPLE_REMOTETERM_HDRS})
+    add_executable(remoteterm ${EXAMPLE_REMOTETERM_SRC} ${EXAMPLE_REMOTETERM_MOCS})
+    target_include_directories(remoteterm PRIVATE ${PROJECT_SOURCE_DIR}/examples/cpp/RemoteTerm)
+    target_link_libraries(remoteterm ${QTERMWIDGET_LIBRARY_NAME} Qt6::Network)
+endif()
+# end of example application RemoteTerm
 
 # python binding
 if (QTERMWIDGET_BUILD_PYTHON_BINDING)

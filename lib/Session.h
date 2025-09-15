@@ -39,6 +39,7 @@ namespace Konsole {
 class Emulation;
 class Pty;
 class TerminalDisplay;
+class SerialChannel; // forward (Konsole namespace)
 //class ZModemDialog;
 
 /**
@@ -80,6 +81,16 @@ public:
      * after run() has been called successfully.
      */
     bool isRunning() const;
+
+#ifdef QTERMWIDGET_HAVE_QSERIALPORT
+    /** Starts the session using a direct serial device instead of a PTY. */
+    bool runSerial(const QString &devicePath,
+                   int baudRate = 115200,
+                   int dataBits = 8,
+                   int stopBits = 1,
+                   int parity = 0,
+                   bool flowControl = false);
+#endif
 
     /**
      * Sets the profile associated with this session.
@@ -567,6 +578,11 @@ private:
     static int lastSessionId;
 
     int ptySlaveFd;
+
+#ifdef QTERMWIDGET_HAVE_QSERIALPORT
+    SerialChannel* _serialChannel { nullptr };
+    bool _serialActive { false };
+#endif
 
 };
 

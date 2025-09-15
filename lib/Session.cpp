@@ -42,6 +42,9 @@
 #include "TerminalDisplay.h"
 #include "ShellCommand.h"
 #include "Vt102Emulation.h"
+#ifdef QTERMWIDGET_HAVE_QSERIALPORT
+#include "SerialChannel.h"
+#endif
 
 using namespace Konsole;
 
@@ -70,13 +73,17 @@ Session::Session(QObject* parent) :
 //   , _zmodemProc(0)
 //   , _zmodemProgress(0)
         , _hasDarkBackground(false)
+#ifdef QTERMWIDGET_HAVE_QSERIALPORT
+    , _serialChannel(nullptr)
+    , _serialActive(false)
+#endif
 {
     //prepare DBus communication
 //    new SessionAdaptor(this);
     _sessionId = ++lastSessionId;
 //    QDBusConnection::sessionBus().registerObject(QLatin1String("/Sessions/")+QString::number(_sessionId), this);
 
-    //create teletype for I/O with shell process
+    //create teletype for I/O with shell process (default path)
     _shellProcess = new Pty();
     ptySlaveFd = _shellProcess->pty()->slaveFd();
 
@@ -139,6 +146,11 @@ bool Session::hasDarkBackground() const
 }
 bool Session::isRunning() const
 {
+#ifdef QTERMWIDGET_HAVE_QSERIALPORT
+    if(_serialActive && _serialChannel) {
+        return _serialChannel->isRunning();
+    }
+#endif
     return (_shellProcess != nullptr && _shellProcess->state() == QProcess::Running);
 }
 
@@ -237,6 +249,12 @@ void Session::removeView(TerminalDisplay * widget)
 
 void Session::run()
 {
+#ifdef QTERMWIDGET_HAVE_QSERIALPORT
+    if(_serialActive) {
+        // Already started via runSerial()
+        return;
+    }
+#endif
     // Upon a KPty error, there is no description on what that error was...
     // Check to see if the given program is executable.
 
@@ -598,6 +616,9 @@ Session::~Session()
     close();
     delete _emulation;
     delete _shellProcess;
+#ifdef QTERMWIDGET_HAVE_QSERIALPORT
+    delete _serialChannel;
+#endif
 //  delete _zmodemProc;
 }
 
@@ -958,6 +979,52 @@ int Session::getPtySlaveFd() const
 {
     return ptySlaveFd;
 }
+
+#ifdef QTERMWIDGET_HAVE_QSERIALPORT
+bool Session::runSerial(const QString &devicePath,
+                        int baudRate,
+                        int dataBits,
+                        int stopBits,
+                        int parity,
+                        bool flowControl)
+{
+    if(_serialActive) {
+        return true; // already active
+    }
+
+    if(!_serialChannel) {
+        _serialChannel = new SerialChannel(this);
+        connect(_serialChannel, &SerialChannel::receivedData, this, [this](const QByteArray &bytes){
+            onReceiveBlock(bytes.constData(), bytes.size());
+        });
+        connect(_serialChannel, &SerialChannel::error, this, [this](const QString &msg){
+            qWarning() << "SerialChannel error:" << msg;
+        });
+    }
+
+    if(!_serialChannel->start(devicePath, baudRate, dataBits, stopBits, parity, flowControl)) {
+        return false;
+    }
+
+    _serialActive = true;
+
+    // disconnect PTY connections (we keep _shellProcess allocated but unused)
+    disconnect( _shellProcess,SIGNAL(receivedData(const char *,int)),this,
+                SLOT(onReceiveBlock(const char *,int)) );
+    disconnect( _emulation,SIGNAL(sendData(const char *,int)),_shellProcess,
+                SLOT(sendData(const char *,int)) );
+
+    // connect emulation sendData to serial write
+    connect(_emulation, &Emulation::sendData, this, [this](const char *data, int len){
+        if(_serialChannel) {
+            _serialChannel->sendData(QByteArray(data, len));
+        }
+    });
+
+    emit started();
+    return true;
+}
+#endif
 
 SessionGroup::SessionGroup()
         : _masterMode(0)
