@@ -14,7 +14,7 @@
 
 int main(int argc, char **argv) {
     QApplication app(argc, argv);
-    QCoreApplication::setApplicationName(QStringLiteral("SerialConsole"));
+    QCoreApplication::setApplicationName(QStringLiteral("qTerm"));
 
 #ifndef QTERMWIDGET_HAVE_QSERIALPORT
     QMessageBox::critical(nullptr, QObject::tr("Serial Support Missing"),
@@ -35,7 +35,7 @@ int main(int argc, char **argv) {
     int baud = parser.value(baudOpt).toInt();
 
     QWidget window;
-    window.setWindowTitle(QStringLiteral("SerialConsole"));
+    window.setWindowTitle(QStringLiteral("qTerm"));
 
     auto *layout = new QVBoxLayout(&window);
     auto *term = new QTermWidget(&window);
