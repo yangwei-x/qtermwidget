@@ -86,6 +86,8 @@ set(SRCS
     lib/kptydevice.cpp
     lib/kptyprocess.cpp
     lib/Pty.cpp
+    lib/pty_posix.cpp
+    lib/pty_posix_helpers.cpp
     lib/SerialChannel.cpp
     lib/qtermwidget.cpp
     lib/Screen.cpp
@@ -113,6 +115,7 @@ set(HDRS
     lib/qtermwidget.h
     lib/ScreenWindow.h
     lib/SearchBar.h
+    lib/pty_posix.h
     lib/Session.h
     lib/TerminalDisplay.h
     lib/Vt102Emulation.h

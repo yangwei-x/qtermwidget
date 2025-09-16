@@ -26,6 +26,8 @@
 
 #include <QtDebug>
 
+#include "pty_posix_helpers.h"
+
 
 #if defined(__FreeBSD__) || defined(__DragonFly__)
 #define HAVE_LOGIN
@@ -669,43 +671,29 @@ endutent();
 // XXX Supposedly, tc[gs]etattr do not work with the master on Solaris.
 // Please verify.
 
+// Delegate POSIX-specific terminal operations to centralized helpers
 bool KPty::tcGetAttr(struct ::termios * ttmode) const
 {
     Q_D(const KPty);
-
-    return _tcgetattr(d->masterFd, ttmode) == 0;
+    return pty_tcGetAttr(d->masterFd, ttmode);
 }
 
 bool KPty::tcSetAttr(struct ::termios * ttmode)
 {
     Q_D(KPty);
-
-    return _tcsetattr(d->masterFd, ttmode) == 0;
+    return pty_tcSetAttr(d->masterFd, ttmode);
 }
 
 bool KPty::setWinSize(int lines, int columns)
 {
     Q_D(KPty);
-
-    struct winsize winSize;
-    memset(&winSize, 0, sizeof(winSize));
-    winSize.ws_row = (unsigned short)lines;
-    winSize.ws_col = (unsigned short)columns;
-    return ioctl(d->masterFd, TIOCSWINSZ, (char *)&winSize) != -1;
+    return pty_setWinSize(d->masterFd, lines, columns);
 }
 
 bool KPty::setEcho(bool echo)
 {
-    struct ::termios ttmode;
-    if (!tcGetAttr(&ttmode)) {
-        return false;
-    }
-    if (!echo) {
-        ttmode.c_lflag &= ~ECHO;
-    } else {
-        ttmode.c_lflag |= ECHO;
-    }
-    return tcSetAttr(&ttmode);
+    Q_D(KPty);
+    return pty_setEcho(d->masterFd, echo);
 }
 
 const char * KPty::ttyName() const
