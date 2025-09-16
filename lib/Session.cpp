@@ -84,10 +84,14 @@ Session::Session(QObject* parent) :
     _sessionId = ++lastSessionId;
 //    QDBusConnection::sessionBus().registerObject(QLatin1String("/Sessions/")+QString::number(_sessionId), this);
 
-    //create teletype for I/O with shell process (default path)
-    // Use platform factory so backends can be swapped (POSIX/ConPTY) later
+    //create teletype for I/O with shell process (default path) if PTY backend present
+#ifdef QTERMWIDGET_HAVE_PTY
     _shellProcess = createPty(this);
     ptySlaveFd = _shellProcess->pty()->slaveFd();
+#else
+    _shellProcess = nullptr; // PTY disabled (e.g. Windows build without ConPTY)
+    ptySlaveFd = -1;
+#endif
 
     //create emulation backend
     _emulation = new Vt102Emulation();
@@ -111,16 +115,19 @@ Session::Session(QObject* parent) :
             this, &Session::cursorChanged);
 
     //connect teletype to emulation backend
-    _shellProcess->setUtf8Mode(true);
+    if(_shellProcess) {
+        _shellProcess->setUtf8Mode(true);
+    }
 
-    connect( _shellProcess,SIGNAL(receivedData(const char *,int)),this,
-             SLOT(onReceiveBlock(const char *,int)) );
-    connect( _emulation,SIGNAL(sendData(const char *,int)),_shellProcess,
-             SLOT(sendData(const char *,int)) );
-    connect( _emulation,SIGNAL(lockPtyRequest(bool)),_shellProcess,SLOT(lockPty(bool)) );
-    connect( _emulation,SIGNAL(useUtf8Request(bool)),_shellProcess,SLOT(setUtf8Mode(bool)) );
-
-    connect( _shellProcess,SIGNAL(finished(int,QProcess::ExitStatus)), this, SLOT(done(int,QProcess::ExitStatus)) );
+    if(_shellProcess) {
+        connect( _shellProcess,SIGNAL(receivedData(const char *,int)),this,
+                 SLOT(onReceiveBlock(const char *,int)) );
+        connect( _emulation,SIGNAL(sendData(const char *,int)),_shellProcess,
+                 SLOT(sendData(const char *,int)) );
+        connect( _emulation,SIGNAL(lockPtyRequest(bool)),_shellProcess,SLOT(lockPty(bool)) );
+        connect( _emulation,SIGNAL(useUtf8Request(bool)),_shellProcess,SLOT(setUtf8Mode(bool)) );
+        connect( _shellProcess,SIGNAL(finished(int,QProcess::ExitStatus)), this, SLOT(done(int,QProcess::ExitStatus)) );
+    }
     // not in kprocess anymore connect( _shellProcess,SIGNAL(done(int)), this, SLOT(done(int)) );
 
     //setup timer for monitoring session activity

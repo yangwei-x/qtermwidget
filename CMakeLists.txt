@@ -49,6 +49,7 @@ option(QTERMWIDGET_ENABLE_SERIAL "Enable serial device support via QSerialPort" 
 
 # Optional Windows ConPTY backend (experimental scaffold). Default OFF.
 option(QTERMWIDGET_ENABLE_CONPTY "Enable Windows ConPTY backend (experimental)" OFF)
+option(QTERMWIDGET_ENABLE_PTY "Enable POSIX PTY backend (disable for Windows builds without ConPTY)" ON)
 if(QTERMWIDGET_ENABLE_SERIAL)
     find_package(Qt6 COMPONENTS SerialPort QUIET)
     if(Qt6SerialPort_FOUND)
@@ -103,16 +104,9 @@ set(SRCS
     lib/KeyboardTranslator.cpp
     lib/konsole_wcwidth.cpp
     lib/kprocess.cpp
-    lib/pty/kpty.cpp
-    lib/pty/kptydevice.cpp
-    lib/pty/kptyprocess.cpp
-    lib/pty/Pty.cpp
-    lib/pty/pty_posix.cpp
-    lib/pty/pty_posix_helpers.cpp
     lib/SerialChannel.cpp
     lib/qtermwidget.cpp
     lib/Screen.cpp
-    lib/pty/PtyFactory_posix.cpp
     lib/ScreenWindow.cpp
     lib/SearchBar.cpp
     lib/Session.cpp
@@ -123,24 +117,55 @@ set(SRCS
     lib/Vt102Emulation.cpp
 )
 
+# Platform PTY sources
+if(QTERMWIDGET_ENABLE_PTY)
+    if(UNIX AND NOT WIN32)
+        list(APPEND SRCS
+            lib/pty/kpty.cpp
+            lib/pty/kptydevice.cpp
+            lib/pty/kptyprocess.cpp
+            lib/pty/Pty.cpp
+            lib/pty/pty_posix.cpp
+            lib/pty/pty_posix_helpers.cpp
+            lib/pty/PtyFactory_posix.cpp
+        )
+        set(QTERMWIDGET_HAVE_PTY 1)
+    elseif(WIN32)
+        if(QTERMWIDGET_ENABLE_CONPTY)
+            # Windows ConPTY scaffold uses same factory file for now
+            list(APPEND SRCS lib/pty/PtyFactory_posix.cpp lib/pty/Pty.cpp)
+            set(QTERMWIDGET_HAVE_PTY 1)
+        else()
+            message(STATUS "qtermwidget: PTY backend disabled on Windows (no ConPTY)")
+        endif()
+    endif()
+else()
+    message(STATUS "qtermwidget: PTY support disabled by QTERMWIDGET_ENABLE_PTY=OFF")
+endif()
+
 # Only the Headers that need to be moc'd go here
 set(HDRS
     lib/Emulation.h
     lib/Filter.h
     lib/HistorySearch.h
     lib/kprocess.h
-    lib/pty/kptydevice.h
-    lib/pty/kptyprocess.h
     lib/SerialChannel.h
     lib/qtermwidget.h
     lib/ScreenWindow.h
     lib/SearchBar.h
-    lib/pty/Pty.h
-    lib/pty/pty_posix.h
     lib/Session.h
     lib/TerminalDisplay.h
     lib/Vt102Emulation.h
 )
+
+if(QTERMWIDGET_ENABLE_PTY)
+    list(APPEND HDRS lib/pty/Pty.h)
+    if(UNIX AND NOT WIN32)
+        list(APPEND HDRS lib/pty/kptydevice.h lib/pty/kptyprocess.h lib/pty/pty_posix.h)
+    elseif(WIN32 AND QTERMWIDGET_ENABLE_CONPTY)
+        list(APPEND HDRS lib/pty/pty_windows.h)
+    endif()
+endif()
 
 set(UI
     lib/SearchBar.ui
@@ -156,9 +181,9 @@ set(HDRS_DISTRIB
 )
 
 # PTY headers moved into lib/pty/
-list(APPEND HDRS_DISTRIB
-    lib/pty/Pty.h
-)
+if(QTERMWIDGET_ENABLE_PTY)
+    list(APPEND HDRS_DISTRIB lib/pty/Pty.h)
+endif()
 
 # dirs
 set(KB_LAYOUT_DIR "${CMAKE_INSTALL_FULL_DATADIR}/${QTERMWIDGET_LIBRARY_NAME}/kb-layouts")
@@ -283,6 +308,10 @@ target_compile_definitions(${QTERMWIDGET_LIBRARY_NAME}
         "HAVE_POSIX_OPENPT"
         "HAVE_SYS_TIME_H"
 )
+
+if(QTERMWIDGET_HAVE_PTY)
+    target_compile_definitions(${QTERMWIDGET_LIBRARY_NAME} PRIVATE "QTERMWIDGET_HAVE_PTY")
+endif()
 
 
 generate_export_header(${QTERMWIDGET_LIBRARY_NAME}

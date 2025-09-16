@@ -51,6 +51,18 @@ Build dependencies are as follows:
 - [lxqt-build-tools](https://github.com/lxqt/lxqt-build-tools/) ≥ 2.0.0 is also needed for compilation.
 - Git is needed to optionally pull latest VCS checkouts.
 
+### CMake Options (platform / PTY)
+
+| Option | Default | Description |
+| ------ | ------- | ----------- |
+| `QTERMWIDGET_ENABLE_PTY` | ON | Enable POSIX PTY backend (kpty wrappers). Disable when building a minimal core on Windows without ConPTY. |
+| `QTERMWIDGET_ENABLE_CONPTY` | OFF | Experimental Windows ConPTY scaffold (stub only for now). When ON and building on Windows, a Windows backend placeholder is used. |
+| `QTERMWIDGET_ENABLE_SERIAL` | ON | Enable optional QSerialPort integration for direct serial devices. |
+| `QTERMWIDGET_ENABLE_CONPTY` + `QTERMWIDGET_ENABLE_PTY=OFF` |  | Builds without any working PTY (only useful for UI / rendering tests). Session will not spawn a shell. |
+
+On macOS / Linux you normally leave `QTERMWIDGET_ENABLE_PTY=ON`.
+On Windows today you can build with `-DQTERMWIDGET_ENABLE_PTY=OFF -DQTERMWIDGET_ENABLE_CONPTY=ON` to prepare for a future ConPTY implementation (current code is a stub that doesn't launch a shell yet).
+
 Code configuration is handled by CMake. CMake variable `CMAKE_INSTALL_PREFIX` will normally have to be set to `/usr`, depending on the way library paths are dealt with on 64bit systems. Variables like `CMAKE_INSTALL_LIBDIR` may have to be set as well.
 
 To build, run `make`. To install, run `make install` which accepts variable `DESTDIR` as usual.
