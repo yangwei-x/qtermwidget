@@ -2,14 +2,23 @@
 #include "Pty.h"
 #include "pty_posix.h"
 
+#if defined(QTERMWIDGET_ENABLE_CONPTY) && (WIN32 OR MINGW)
+#include "pty_windows.h"
+#endif
+
 namespace Konsole {
 
 Pty* createPty(QObject* parent)
 {
-    // Return a POSIX-specific Pty wrapper. Currently this simply
-    // delegates to existing Pty implementation but centralizes the
-    // POSIX backend creation point for future extensions.
+#if defined(QTERMWIDGET_ENABLE_CONPTY) && (WIN32 OR MINGW)
+    // If ConPTY support is requested at configure time and we're on Windows,
+    // prefer the ConPty backend. The `pty_windows.h` file is a scaffold for
+    // a future ConPTY implementation.
+    return new ConPty(parent);
+#else
+    // Default: return the POSIX wrapper
     return new PosixPty(parent);
+#endif
 }
 
 }

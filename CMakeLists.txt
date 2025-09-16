@@ -41,6 +41,9 @@ find_package(lxqt2-build-tools ${LXQTBT_MINIMUM_VERSION} REQUIRED)
 
 # Optional SerialPort (direct serial device support)
 option(QTERMWIDGET_ENABLE_SERIAL "Enable serial device support via QSerialPort" ON)
+
+# Optional Windows ConPTY backend (experimental scaffold). Default OFF.
+option(QTERMWIDGET_ENABLE_CONPTY "Enable Windows ConPTY backend (experimental)" OFF)
 if(QTERMWIDGET_ENABLE_SERIAL)
     find_package(Qt6 COMPONENTS SerialPort QUIET)
     if(Qt6SerialPort_FOUND)
@@ -202,6 +205,15 @@ if (QTERMWIDGET_USE_UTEMPTER)
         find_library(UTEMPTER_LIB NAMES utempter ulog REQUIRED)
         target_link_libraries(${QTERMWIDGET_LIBRARY_NAME} ${UTEMPTER_LIB})
     endif()
+endif()
+
+if(QTERMWIDGET_ENABLE_CONPTY)
+    message(STATUS "qtermwidget: ConPTY support requested (platform-specific)")
+    # Expose define so code can conditionally compile ConPTY support.
+    target_compile_definitions(${QTERMWIDGET_LIBRARY_NAME}
+        PRIVATE
+            "QTERMWIDGET_ENABLE_CONPTY"
+    )
 endif()
 
 if (UTF8PROC_FOUND)
