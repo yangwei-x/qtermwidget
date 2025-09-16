@@ -35,9 +35,14 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(QT_MINIMUM_VERSION "6.6.0")
 set(LXQTBT_MINIMUM_VERSION "2.2.0")
 
+option(QTERMWIDGET_SKIP_LXQT_BUILD_TOOLS "Build without lxqt2-build-tools (disables translations/pkg-config helper)" OFF)
+
 find_package(Qt6Widgets "${QT_MINIMUM_VERSION}" REQUIRED)
 find_package(Qt6LinguistTools "${QT_MINIMUM_VERSION}" REQUIRED)
-find_package(lxqt2-build-tools ${LXQTBT_MINIMUM_VERSION} REQUIRED)
+
+if(NOT QTERMWIDGET_SKIP_LXQT_BUILD_TOOLS)
+    find_package(lxqt2-build-tools ${LXQTBT_MINIMUM_VERSION} REQUIRED)
+endif()
 
 # Optional SerialPort (direct serial device support)
 option(QTERMWIDGET_ENABLE_SERIAL "Enable serial device support via QSerialPort" ON)
@@ -58,10 +63,23 @@ if(USE_UTF8PROC)
     find_package(Utf8Proc REQUIRED)
 endif()
 
-include(LXQtPreventInSourceBuilds)
-include(LXQtTranslateTs)
-include(LXQtCompilerSettings NO_POLICY_SCOPE)
-include(LXQtCreatePkgConfigFile)
+if(NOT QTERMWIDGET_SKIP_LXQT_BUILD_TOOLS)
+    include(LXQtPreventInSourceBuilds)
+    include(LXQtTranslateTs)
+    include(LXQtCompilerSettings NO_POLICY_SCOPE)
+    include(LXQtCreatePkgConfigFile)
+else()
+    message(WARNING "Building without lxqt2-build-tools. Translations and pkg-config file generation will be skipped.")
+    # Stub for lxqt_translate_ts(<out_var> ...)
+    function(lxqt_translate_ts OUTVAR)
+        # Simply define the requested output variable as empty so add_library doesn't break.
+        set(${OUTVAR} "" PARENT_SCOPE)
+    endfunction()
+    # Stub for lxqt_create_pkgconfig_file(...) does nothing.
+    function(lxqt_create_pkgconfig_file)
+        message(STATUS "lxqt_create_pkgconfig_file skipped (lxqt2-build-tools not used)")
+    endfunction()
+endif()
 
 if(APPLE)
     if(CMAKE_VERSION VERSION_GREATER 3.9)
@@ -237,9 +255,24 @@ if (UTF8PROC_FOUND)
 endif()
 
 if(APPLE)
-    set (CMAKE_SKIP_RPATH 1)
-    # this is a must to load the lib correctly
-    set_target_properties(${QTERMWIDGET_LIBRARY_NAME} PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTALL_FULL_LIBDIR})
+    option(QTERMWIDGET_MACOS_DEV_RPATH "Enable @loader_path rpath so examples run from build dir" ON)
+    if(QTERMWIDGET_MACOS_DEV_RPATH)
+        # Don't skip rpath; embed an rpath pointing to the directory of the executable (where the dylib is)
+        set(CMAKE_SKIP_RPATH 0)
+        # Use @rpath based install name so executables can embed rpath search paths
+        set_target_properties(${QTERMWIDGET_LIBRARY_NAME} PROPERTIES
+            MACOSX_RPATH ON
+            BUILD_WITH_INSTALL_RPATH OFF
+            INSTALL_NAME_DIR "@rpath"
+            INSTALL_NAME "@rpath/lib${QTERMWIDGET_LIBRARY_NAME}.dylib"
+            OUTPUT_NAME ${QTERMWIDGET_LIBRARY_NAME}
+            INSTALL_RPATH "@rpath"
+            BUILD_RPATH "@loader_path;${CMAKE_BINARY_DIR}"
+        )
+    else()
+        set (CMAKE_SKIP_RPATH 1)
+        set_target_properties(${QTERMWIDGET_LIBRARY_NAME} PROPERTIES INSTALL_NAME_DIR ${CMAKE_INSTALL_FULL_LIBDIR})
+    endif()
 endif()
 
 target_compile_definitions(${QTERMWIDGET_LIBRARY_NAME}
