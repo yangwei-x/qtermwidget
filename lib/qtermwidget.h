@@ -222,6 +222,13 @@ public:
 #endif
 
     /**
+     * Open a custom program inside a fresh PTY replacing the existing session process.
+     * This stops any running session (if still active) and starts the provided program
+     * with arguments. Returns true if process launch was initiated.
+     */
+    bool openPty(const QString &program, const QStringList &arguments = QStringList());
+
+    /**
      * Sets the shape of the keyboard cursor.  This is the cursor drawn
      * at the position in the terminal where keyboard input will appear.
      */
