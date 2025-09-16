@@ -39,6 +39,7 @@
 
 // KDE
 #include "kptyprocess.h"
+#include "qtermwidget_export.h"
 
 namespace Konsole {
 
@@ -55,7 +56,7 @@ namespace Konsole {
  * To start the terminal process, call the start() method
  * with the program name and appropriate arguments.
  */
-class Pty: public KPtyProcess
+class QTERMWIDGET_EXPORT Pty: public KPtyProcess
 {
 Q_OBJECT
 

@@ -10,5 +10,8 @@ cmake -B build -S . \
     -DQTERMWIDGET_USE_UTEMPTER=ON
 make -C build
 
+# Run tests (includes pty_integration_test)
+ctest --test-dir build --output-on-failure || true
+
 cd pyqt
 CXXFLAGS="-I$PWD/../lib -I$PWD/../build/lib" LDFLAGS="-L$PWD/../build" sip-wheel --verbose --qmake=/usr/bin/qmake6
