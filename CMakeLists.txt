@@ -85,16 +85,16 @@ set(SRCS
     lib/KeyboardTranslator.cpp
     lib/konsole_wcwidth.cpp
     lib/kprocess.cpp
-    lib/kpty.cpp
-    lib/kptydevice.cpp
-    lib/kptyprocess.cpp
-    lib/Pty.cpp
-    lib/pty_posix.cpp
-    lib/pty_posix_helpers.cpp
+    lib/pty/kpty.cpp
+    lib/pty/kptydevice.cpp
+    lib/pty/kptyprocess.cpp
+    lib/pty/Pty.cpp
+    lib/pty/pty_posix.cpp
+    lib/pty/pty_posix_helpers.cpp
     lib/SerialChannel.cpp
     lib/qtermwidget.cpp
     lib/Screen.cpp
-    lib/PtyFactory_posix.cpp
+    lib/pty/PtyFactory_posix.cpp
     lib/ScreenWindow.cpp
     lib/SearchBar.cpp
     lib/Session.cpp
@@ -111,14 +111,14 @@ set(HDRS
     lib/Filter.h
     lib/HistorySearch.h
     lib/kprocess.h
-    lib/kptydevice.h
-    lib/kptyprocess.h
-    lib/Pty.h
+    lib/pty/kptydevice.h
+    lib/pty/kptyprocess.h
     lib/SerialChannel.h
     lib/qtermwidget.h
     lib/ScreenWindow.h
     lib/SearchBar.h
-    lib/pty_posix.h
+    lib/pty/Pty.h
+    lib/pty/pty_posix.h
     lib/Session.h
     lib/TerminalDisplay.h
     lib/Vt102Emulation.h
@@ -135,6 +135,11 @@ set(HDRS_DISTRIB
     lib/KeyboardTranslator.h
     lib/Filter.h
     lib/qtermwidget_interface.h
+)
+
+# PTY headers moved into lib/pty/
+list(APPEND HDRS_DISTRIB
+    lib/pty/Pty.h
 )
 
 # dirs
@@ -254,8 +259,9 @@ generate_export_header(${QTERMWIDGET_LIBRARY_NAME}
 
 target_include_directories(${QTERMWIDGET_LIBRARY_NAME}
     PUBLIC
-        "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/lib>"
+    "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/lib>"
         "$<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/lib>"
+        "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/lib/pty>"
     INTERFACE
         "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
         "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/${QTERMWIDGET_LIBRARY_NAME}>"

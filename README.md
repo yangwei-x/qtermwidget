@@ -129,6 +129,27 @@ void | startShellProgram()
 void | startTerminalTeletype()
 QStringList | availableColorSchemes()
 
+## Developer notes (PTY reorganization)
+
+- PTY implementation files have been consolidated under `lib/pty/`.
+       - Public headers that are part of the library API are now provided from `lib/pty/` (for example `lib/pty/Pty.h`).
+       - Legacy copies that used to live directly under `lib/` (such as `lib/kpty.*`, `lib/kptydevice.*`, and `lib/Pty.*`) were removed to avoid duplicate symbols and to make the PTY implementation easier to maintain.
+
+- If you build consumers or packaging scripts that previously referenced headers in `lib/` directly, update them to include headers from the installed include directory (the library installs headers into `${CMAKE_INSTALL_INCLUDEDIR}/qtermwidget6/`). For example:
+
+       #include <qtermwidget6/Pty.h>
+
+- Windows ConPTY: a minimal scaffold exists under `lib/pty/pty_windows.h` and is conditionally compiled when the CMake option `QTERMWIDGET_ENABLE_CONPTY` is enabled and the platform supports it. The scaffold is a stub and does not implement full ConPTY functionality yet.
+
+- If you encounter stale build errors mentioning deleted headers (e.g. `lib/kptydevice.h`), regenerate the build system to refresh moc-generated files:
+
+```bash
+cmake -S . -B build -DBUILD_EXAMPLE=ON
+cmake --build build --clean-first -- -j$(nproc)
+```
+
+If you'd like, I can also update packaging/install rules or existing documentation to reflect header installation locations; tell me which you'd prefer next.
+
 ### Public Slots
 Type | Function
 | ---: | :---
