@@ -22,8 +22,9 @@
     02110-1301  USA.
 */
 
-// Own
 #include "Session.h"
+// Own
+#include "PtyFactory.h"
 
 // Standard
 #include <cstdlib>
@@ -84,7 +85,8 @@ Session::Session(QObject* parent) :
 //    QDBusConnection::sessionBus().registerObject(QLatin1String("/Sessions/")+QString::number(_sessionId), this);
 
     //create teletype for I/O with shell process (default path)
-    _shellProcess = new Pty();
+    // Use platform factory so backends can be swapped (POSIX/ConPTY) later
+    _shellProcess = createPty(this);
     ptySlaveFd = _shellProcess->pty()->slaveFd();
 
     //create emulation backend

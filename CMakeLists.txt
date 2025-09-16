@@ -89,6 +89,7 @@ set(SRCS
     lib/SerialChannel.cpp
     lib/qtermwidget.cpp
     lib/Screen.cpp
+    lib/PtyFactory_posix.cpp
     lib/ScreenWindow.cpp
     lib/SearchBar.cpp
     lib/Session.cpp
