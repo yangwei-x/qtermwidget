@@ -10,7 +10,10 @@
 #include <functional>
 
 #include "Pty.h"
+
+#ifdef _WIN32
 #include "PtyConPty_win.h"
+#endif
 
 using namespace Konsole;
 
@@ -30,7 +33,7 @@ int main(int argc, char **argv)
 
     // Helper to create a Pty and connect to its receivedData signal
     auto makePtyAndConnect = [&](Pty*& outPty, QByteArray &accum, std::function<void(const QByteArray&)> onData){
-        outPty = new PtyConPty(&app);
+        outPty = new Pty(&app);
         accum.clear();
         // Capture onData by value so the slot doesn't hold a dangling reference after
         // makePtyAndConnect returns.
@@ -65,7 +68,10 @@ int main(int argc, char **argv)
 
         if (phase == 0) {
             makePtyAndConnect(pty, received, [&](const QByteArray &acc){
-                if (acc.contains("hello")) {
+                // Require a line containing exactly "hello" to avoid false positives
+                const QString s = QString::fromUtf8(acc);
+                const auto lines = s.split('\n');
+                if (std::any_of(lines.begin(), lines.end(), [](const QString &l){ return l.trimmed() == QLatin1String("hello"); })) {
                     qDebug() << "Phase 0: simple echo OK";
                     // advance
                     pty->closePty();
@@ -75,8 +81,14 @@ int main(int argc, char **argv)
             });
 
             QStringList progArgs0;
-            progArgs0 << QStringLiteral("/c") << QStringLiteral("echo hello");
-            int rc = pty->start(QStringLiteral("cmd"), progArgs0, env, 0, false);
+            int rc = 0;
+#ifdef _WIN32
+            progArgs0 << QStringLiteral("cmd") << QStringLiteral("/c") << QStringLiteral("echo hello");
+            rc = pty->start(QStringLiteral("cmd"), progArgs0, env, 0, false);
+#else
+            progArgs0 << QStringLiteral("/bin/sh") << QStringLiteral("-c") << QStringLiteral("echo hello");
+            rc = pty->start(QStringLiteral("/bin/sh"), progArgs0, env, 0, false);
+#endif
             if (rc != 0) {
                 qCritical() << "Phase 0: Failed to start cmd, rc=" << rc;
                 return QCoreApplication::exit(1);
@@ -88,7 +100,8 @@ int main(int argc, char **argv)
         if (phase == 1) {
             makePtyAndConnect(pty, received, [&](const QByteArray &acc){
                 // Wait for the UTF-8 snippet to appear
-                if (acc.contains("héll")) {
+                const QString s = QString::fromUtf8(acc);
+                if (s.contains(QString::fromUtf8("héll"))) {
                     qDebug() << "Phase 1: special chars echoed OK";
                     pty->closePty();
                     phase = 2;
@@ -97,8 +110,15 @@ int main(int argc, char **argv)
             });
 
             QStringList progArgs1;
-            progArgs1 << QStringLiteral("/c") << QStringLiteral("echo héllö €");
-            int rc = pty->start(QStringLiteral("cmd"), progArgs1, env, 0, false);
+            int rc = 0;
+#ifdef _WIN32
+            progArgs1 << QStringLiteral("cmd") << QStringLiteral("/c") << QStringLiteral("echo héllö €");
+            rc = pty->start(QStringLiteral("cmd"), progArgs1, env, 0, false);
+#else
+            // Use a single quoted string so the shell doesn't interpret '&' or split the Chinese text as a command
+            progArgs1 << QStringLiteral("/bin/sh") << QStringLiteral("-c") << QStringLiteral("echo 'héllö € 你好'");
+            rc = pty->start(QStringLiteral("/bin/sh"), progArgs1, env, 0, false);
+#endif
             if (rc != 0) {
                 qCritical() << "Phase 1: Failed to start cmd, rc=" << rc;
                 return QCoreApplication::exit(1);
@@ -114,7 +134,8 @@ int main(int argc, char **argv)
 
         if (phase == 2) {
             makePtyAndConnect(pty, received, [&](const QByteArray &acc){
-                if (acc.contains("script-okay")) {
+                const QString s = QString::fromUtf8(acc);
+                if (s.contains(QLatin1String("script-okay"))) {
                     qDebug() << "Phase 2: shell script output OK";
                     // close PTY and wait briefly for the child to exit cleanly
                     pty->closePty();
@@ -122,10 +143,16 @@ int main(int argc, char **argv)
                 }
             });
 
-            // Spawn cmd that executes a small script and exits
+            // Spawn a shell that executes a small script and exits
             QStringList progArgs2;
-            progArgs2 << QStringLiteral("/c") << QStringLiteral("echo script-okay");
-            int rc = pty->start(QStringLiteral("cmd"), progArgs2, env, 0, false);
+            int rc = 0;
+#ifdef _WIN32
+            progArgs2 << QStringLiteral("cmd") << QStringLiteral("/c") << QStringLiteral("echo script-okay");
+            rc = pty->start(QStringLiteral("cmd"), progArgs2, env, 0, false);
+#else
+            progArgs2 << QStringLiteral("/bin/sh") << QStringLiteral("-c") << QStringLiteral("echo script-okay");
+            rc = pty->start(QStringLiteral("/bin/sh"), progArgs2, env, 0, false);
+#endif
             if (rc != 0) {
                 qCritical() << "Phase 2: Failed to start cmd, rc=" << rc;
                 return QCoreApplication::exit(1);

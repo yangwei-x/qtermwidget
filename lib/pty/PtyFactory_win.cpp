@@ -1,5 +1,4 @@
 #include "PtyConPty_win.h"
-#include "Pty.h"
 
 namespace Konsole {
 

@@ -30,7 +30,7 @@
 #include "Pty.h"
 
 #ifdef _WIN32
-// On Windows we use the stub / ConPTY implementation in Pty_win.cpp; this file is POSIX-only.
+// On Windows the implementation lives in PtyConPty_win.cpp; this file is POSIX-only.
 #else
 
 // System
@@ -313,7 +313,8 @@ void Pty::init()
     _eraseChar = 0;
     _xonXoff = true;
     _utf8 = true;
-    connect(pty(), SIGNAL(readyRead()), this, SLOT(dataReceived()));
+    // Use new-style signal/slot for type safety
+    connect(pty(), &QIODevice::readyRead, this, &Pty::dataReceived);
     setPtyChannels(KPtyProcess::AllChannels);
 }
 
@@ -356,12 +357,18 @@ void Pty::lockPty(bool lock)
 
 int Pty::foregroundProcessGroup() const
 {
-    #ifndef _WIN32
+    const int master_fd = pty()->masterFd();
+    if (master_fd >= 0)
+    {
         int pid = tcgetpgrp(master_fd);
-        return pid;
-    #else
-        return 0;
-    #endif
+
+        if (pid != -1)
+        {
+            return pid;
+        }
+    }
+
+    return 0;
 }
 
 void Pty::closePty()

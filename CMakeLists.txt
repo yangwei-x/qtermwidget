@@ -35,7 +35,7 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(QT_MINIMUM_VERSION "6.6.0")
 set(LXQTBT_MINIMUM_VERSION "2.2.0")
 set(QTERMWIDGET_SKIP_LXQT_BUILD_TOOLS ON)
-set(QTERMWIDGET_ENABLE_CONPTY ON)
+# Respect options defaults set below; do not force-enable features here.
 set(BUILD_EXAMPLE ON)
 
 option(QTERMWIDGET_SKIP_LXQT_BUILD_TOOLS "Build without lxqt2-build-tools (disables translations/pkg-config helper)" OFF)
@@ -190,10 +190,7 @@ set(HDRS_DISTRIB
     lib/qtermwidget_interface.h
 )
 
-# PTY headers moved into lib/pty/
-if(QTERMWIDGET_ENABLE_PTY)
-    list(APPEND HDRS_DISTRIB lib/pty/Pty.h)
-endif()
+# PTY headers are internal for now; do not install lib/pty/Pty.h to avoid exposing kpty internals.
 
 # dirs
 set(KB_LAYOUT_DIR "${CMAKE_INSTALL_FULL_DATADIR}/${QTERMWIDGET_LIBRARY_NAME}/kb-layouts")

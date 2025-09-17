@@ -151,15 +151,39 @@ bool PtyConPty::startProcess(const QString& program, const QStringList& argument
     std::wstring cmdLineW = (actualProgram + " " + arguments.join(' ')).toStdWString();
     std::wstring workingDirW = m_workingDir.isEmpty() ? std::wstring() : m_workingDir.toStdWString();
 
+    // Build environment block from QStringList (VAR=VAL) if provided
+    std::vector<wchar_t> envBlock;
+    if (!environment.isEmpty()) {
+        size_t total = 0;
+        std::vector<std::wstring> entries;
+        entries.reserve(environment.size());
+        for (const QString &e : environment) {
+            std::wstring w = e.toStdWString();
+            total += w.size() + 1; // including \0
+            entries.push_back(std::move(w));
+        }
+        envBlock.resize(total + 1, L'\0'); // double-terminated
+        size_t pos = 0;
+        for (const auto &w : entries) {
+            std::wmemcpy(envBlock.data() + pos, w.c_str(), w.size());
+            pos += w.size();
+            envBlock[pos++] = L'\0';
+        }
+        envBlock[pos] = L'\0';
+    }
+
+    DWORD createFlags = EXTENDED_STARTUPINFO_PRESENT;
+    if (!envBlock.empty()) createFlags |= CREATE_UNICODE_ENVIRONMENT;
+
     BOOL success = CreateProcessW(
         nullptr,                           // lpApplicationName
         const_cast<LPWSTR>(cmdLineW.data()), // lpCommandLine
         nullptr,                           // lpProcessAttributes
         nullptr,                           // lpThreadAttributes
         TRUE,                              // bInheritHandles
-        EXTENDED_STARTUPINFO_PRESENT,      // dwCreationFlags
-        nullptr,                           // lpEnvironment
-        nullptr,                           // lpCurrentDirectory
+        createFlags,                       // dwCreationFlags
+        envBlock.empty() ? nullptr : reinterpret_cast<LPVOID>(envBlock.data()), // lpEnvironment
+        workingDirW.empty() ? nullptr : workingDirW.c_str(), // lpCurrentDirectory
         &si.StartupInfo,                   // lpStartupInfo
         &m_pi                              // lpProcessInformation
     );
