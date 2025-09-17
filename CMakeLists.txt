@@ -34,6 +34,9 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 # Minimum Versions
 set(QT_MINIMUM_VERSION "6.6.0")
 set(LXQTBT_MINIMUM_VERSION "2.2.0")
+set(QTERMWIDGET_SKIP_LXQT_BUILD_TOOLS ON)
+set(QTERMWIDGET_ENABLE_CONPTY ON)
+set(BUILD_EXAMPLE ON)
 
 option(QTERMWIDGET_SKIP_LXQT_BUILD_TOOLS "Build without lxqt2-build-tools (disables translations/pkg-config helper)" OFF)
 
@@ -48,7 +51,7 @@ endif()
 option(QTERMWIDGET_ENABLE_SERIAL "Enable serial device support via QSerialPort" ON)
 
 # Optional Windows ConPTY backend (experimental scaffold). Default OFF.
-option(QTERMWIDGET_ENABLE_CONPTY "Enable Windows ConPTY backend (experimental)" OFF)
+option(QTERMWIDGET_ENABLE_CONPTY "Enable Windows ConPTY backend (experimental)" ON)
 option(QTERMWIDGET_ENABLE_PTY "Enable POSIX PTY backend (disable for Windows builds without ConPTY)" ON)
 if(QTERMWIDGET_ENABLE_SERIAL)
     find_package(Qt6 COMPONENTS SerialPort QUIET)
@@ -159,11 +162,15 @@ set(HDRS
 )
 
 if(QTERMWIDGET_ENABLE_PTY)
-    list(APPEND HDRS lib/pty/Pty.h)
     if(UNIX AND NOT WIN32)
-        list(APPEND HDRS lib/pty/kptydevice.h lib/pty/kptyprocess.h lib/pty/pty_posix.h)
+        # On POSIX we moc the real Pty (has Q_OBJECT) and related headers.
+        list(APPEND HDRS lib/pty/Pty.h lib/pty/kptydevice.h lib/pty/kptyprocess.h lib/pty/pty_posix.h)
     elseif(WIN32 AND QTERMWIDGET_ENABLE_CONPTY)
-        list(APPEND HDRS lib/pty/pty_windows.h)
+        # On Windows the stub Pty.h has no Q_OBJECT; do NOT add it to HDRS (avoids moc generation).
+        # If a future Windows-specific header with Q_OBJECT is added, list it here explicitly.
+        if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/lib/pty/pty_windows.h)
+            list(APPEND HDRS lib/pty/pty_windows.h)
+        endif()
     endif()
 endif()
 

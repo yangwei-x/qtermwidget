@@ -34,8 +34,12 @@
 #include "BlockArray.h"
 #include "Character.h"
 
-// map
+// mmap not available on Windows; use conditional include
+#ifdef _WIN32
+#include <cstdlib>
+#else
 #include <sys/mman.h>
+#endif
 
 namespace Konsole
 {
@@ -293,16 +297,25 @@ public:
 
   CompactHistoryBlock(){
     blockLength = 4096*64; // 256kb
+#ifdef _WIN32
+    head = (quint8*) malloc(blockLength);
+    if (!head) {
+        blockLength = 0; // allocation failed
+    }
+#else
     head = (quint8*) mmap(nullptr, blockLength, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANON, -1, 0);
-    //head = (quint8*) malloc(blockLength);
     Q_ASSERT(head != MAP_FAILED);
+#endif
     tail = blockStart = head;
     allocCount=0;
   }
 
   virtual ~CompactHistoryBlock(){
-    //free(blockStart);
+#ifdef _WIN32
+    free(blockStart);
+#else
     munmap(blockStart, blockLength);
+#endif
   }
 
   virtual unsigned int remaining(){ return blockStart+blockLength-tail;}

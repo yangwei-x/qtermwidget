@@ -29,12 +29,18 @@
 // Own
 #include "Pty.h"
 
+#ifdef _WIN32
+// On Windows we use the stub / ConPTY implementation in Pty_win.cpp; this file is POSIX-only.
+#else
+
 // System
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <cerrno>
+#ifndef _WIN32
 #include <termios.h>
+#endif
 #include <csignal>
 
 // Qt
@@ -61,22 +67,25 @@ QSize Pty::windowSize() const
 
 void Pty::setFlowControlEnabled(bool enable)
 {
-  _xonXoff = enable;
-
-  if (pty()->masterFd() >= 0)
-  {
-    struct ::termios ttmode;
-    pty()->tcGetAttr(&ttmode);
-    if (!enable)
-      ttmode.c_iflag &= ~(IXOFF | IXON);
-    else
-      ttmode.c_iflag |= (IXOFF | IXON);
-    if (!pty()->tcSetAttr(&ttmode))
-      qWarning() << "Unable to set terminal attributes.";
-  }
+    _xonXoff = enable;
+#ifndef _WIN32
+    if (pty()->masterFd() >= 0)
+    {
+        struct ::termios ttmode;
+        pty()->tcGetAttr(&ttmode);
+        if (!enable)
+            ttmode.c_iflag &= ~(IXOFF | IXON);
+        else
+            ttmode.c_iflag |= (IXOFF | IXON);
+        if (!pty()->tcSetAttr(&ttmode))
+            qWarning() << "Unable to set terminal attributes.";
+    }
+#endif
 }
+
 bool Pty::flowControlEnabled() const
 {
+#ifndef _WIN32
     if (pty()->masterFd() >= 0)
     {
         struct ::termios ttmode;
@@ -86,51 +95,60 @@ bool Pty::flowControlEnabled() const
     }
     qWarning() << "Unable to get flow control status, terminal not connected.";
     return false;
+#else
+    return _xonXoff;
+#endif
 }
+
 
 void Pty::setUtf8Mode(bool enable)
 {
-#ifdef IUTF8 // XXX not a reasonable place to check it.
-  _utf8 = enable;
-
-  if (pty()->masterFd() >= 0)
-  {
-    struct ::termios ttmode;
-    pty()->tcGetAttr(&ttmode);
-    if (!enable)
-      ttmode.c_iflag &= ~IUTF8;
-    else
-      ttmode.c_iflag |= IUTF8;
-    if (!pty()->tcSetAttr(&ttmode))
-      qWarning() << "Unable to set terminal attributes.";
-  }
+#ifndef _WIN32
+#ifdef IUTF8
+    _utf8 = enable;
+    if (pty()->masterFd() >= 0)
+    {
+        struct ::termios ttmode;
+        pty()->tcGetAttr(&ttmode);
+        if (!enable)
+            ttmode.c_iflag &= ~IUTF8;
+        else
+            ttmode.c_iflag |= IUTF8;
+        if (!pty()->tcSetAttr(&ttmode))
+            qWarning() << "Unable to set terminal attributes.";
+    }
+#endif
 #endif
 }
 
 void Pty::setErase(char erase)
 {
-  _eraseChar = erase;
-
-  if (pty()->masterFd() >= 0)
-  {
-    struct ::termios ttmode;
-    pty()->tcGetAttr(&ttmode);
-    ttmode.c_cc[VERASE] = erase;
-    if (!pty()->tcSetAttr(&ttmode))
-      qWarning() << "Unable to set terminal attributes.";
-  }
+    _eraseChar = erase;
+#ifndef _WIN32
+    if (pty()->masterFd() >= 0)
+    {
+        struct ::termios ttmode;
+        pty()->tcGetAttr(&ttmode);
+        ttmode.c_cc[VERASE] = erase;
+        if (!pty()->tcSetAttr(&ttmode))
+            qWarning() << "Unable to set terminal attributes.";
+    }
+#endif
 }
 
 char Pty::erase() const
 {
+#ifndef _WIN32
     if (pty()->masterFd() >= 0)
     {
         struct ::termios ttyAttributes;
         pty()->tcGetAttr(&ttyAttributes);
         return ttyAttributes.c_cc[VERASE];
     }
-
     return _eraseChar;
+#else
+    return _eraseChar;
+#endif
 }
 
 void Pty::addEnvironmentVariables(const QStringList& environment)
@@ -198,26 +216,28 @@ int Pty::start(const QString& program,
 
   setUseUtmp(addToUtmp);
 
-  struct ::termios ttmode;
-  pty()->tcGetAttr(&ttmode);
-  if (!_xonXoff)
-    ttmode.c_iflag &= ~(IXOFF | IXON);
-  else
-    ttmode.c_iflag |= (IXOFF | IXON);
+    #ifndef _WIN32
+    struct ::termios ttmode;
+    pty()->tcGetAttr(&ttmode);
+    if (!_xonXoff)
+        ttmode.c_iflag &= ~(IXOFF | IXON);
+    else
+        ttmode.c_iflag |= (IXOFF | IXON);
 #ifdef IUTF8 // XXX not a reasonable place to check it.
-  if (!_utf8)
-    ttmode.c_iflag &= ~IUTF8;
-  else
-    ttmode.c_iflag |= IUTF8;
+    if (!_utf8)
+        ttmode.c_iflag &= ~IUTF8;
+    else
+        ttmode.c_iflag |= IUTF8;
 #endif
 
-  if (_eraseChar != 0)
-      ttmode.c_cc[VERASE] = _eraseChar;
+    if (_eraseChar != 0)
+            ttmode.c_cc[VERASE] = _eraseChar;
 
-  if (!pty()->tcSetAttr(&ttmode))
-    qWarning() << "Unable to set terminal attributes.";
+    if (!pty()->tcSetAttr(&ttmode))
+        qWarning() << "Unable to set terminal attributes.";
 
-  pty()->setWinSize(_windowLines, _windowColumns);
+    pty()->setWinSize(_windowLines, _windowColumns);
+    #endif
 
   KProcess::start();
 
@@ -229,34 +249,36 @@ int Pty::start(const QString& program,
 
 void Pty::setEmptyPTYProperties()
 {
+#ifndef _WIN32
     struct ::termios ttmode;
     pty()->tcGetAttr(&ttmode);
     if (!_xonXoff)
-      ttmode.c_iflag &= ~(IXOFF | IXON);
+        ttmode.c_iflag &= ~(IXOFF | IXON);
     else
-      ttmode.c_iflag |= (IXOFF | IXON);
-  #ifdef IUTF8 // XXX not a reasonable place to check it.
+        ttmode.c_iflag |= (IXOFF | IXON);
+#ifdef IUTF8
     if (!_utf8)
-      ttmode.c_iflag &= ~IUTF8;
+        ttmode.c_iflag &= ~IUTF8;
     else
-      ttmode.c_iflag |= IUTF8;
-  #endif
-
+        ttmode.c_iflag |= IUTF8;
+#endif
     if (_eraseChar != 0)
         ttmode.c_cc[VERASE] = _eraseChar;
-
     if (!pty()->tcSetAttr(&ttmode))
-      qWarning() << "Unable to set terminal attributes.";
+        qWarning() << "Unable to set terminal attributes.";
+#endif
 }
 
 void Pty::setWriteable(bool writeable)
 {
-  struct stat sbuf;
-  stat(pty()->ttyName(), &sbuf);
-  if (writeable)
-    chmod(pty()->ttyName(), sbuf.st_mode | S_IWGRP);
-  else
-    chmod(pty()->ttyName(), sbuf.st_mode & ~(S_IWGRP|S_IWOTH));
+#ifndef _WIN32
+    struct stat sbuf;
+    stat(pty()->ttyName(), &sbuf);
+    if (writeable)
+        chmod(pty()->ttyName(), sbuf.st_mode | S_IWGRP);
+    else
+        chmod(pty()->ttyName(), sbuf.st_mode & ~(S_IWGRP|S_IWOTH));
+#endif
 }
 
 Pty::Pty(int masterFd, QObject* parent)
@@ -271,17 +293,12 @@ Pty::Pty(QObject* parent)
 }
 void Pty::init()
 {
-    // Must call parent class child process modifier, as it sets file descriptors ...etc
+#ifndef _WIN32
     auto parentChildProcModifier = KPtyProcess::childProcessModifier();
     setChildProcessModifier([parentChildProcModifier = std::move(parentChildProcModifier)]() {
         if (parentChildProcModifier) {
             parentChildProcModifier();
         }
-
-        // reset all signal handlers
-        // this ensures that terminal applications respond to
-        // signals generated via key sequences such as Ctrl+C
-        // (which sends SIGINT)
         struct sigaction action;
         sigemptyset(&action.sa_mask);
         action.sa_handler = SIG_DFL;
@@ -290,15 +307,14 @@ void Pty::init()
             sigaction(signal, &action, nullptr);
         }
     });
-
-  _windowColumns = 0;
-  _windowLines = 0;
-  _eraseChar = 0;
-  _xonXoff = true;
-  _utf8 =true;
-
-  connect(pty(), SIGNAL(readyRead()) , this , SLOT(dataReceived()));
-  setPtyChannels(KPtyProcess::AllChannels);
+#endif
+    _windowColumns = 0;
+    _windowLines = 0;
+    _eraseChar = 0;
+    _xonXoff = true;
+    _utf8 = true;
+    connect(pty(), SIGNAL(readyRead()), this, SLOT(dataReceived()));
+    setPtyChannels(KPtyProcess::AllChannels);
 }
 
 Pty::~Pty()
@@ -340,22 +356,18 @@ void Pty::lockPty(bool lock)
 
 int Pty::foregroundProcessGroup() const
 {
-    const int master_fd = pty()->masterFd();
-    if (master_fd >= 0)
-    {
+    #ifndef _WIN32
         int pid = tcgetpgrp(master_fd);
-
-        if (pid != -1)
-        {
-            return pid;
-        }
-    }
-
-    return 0;
+        return pid;
+    #else
+        return 0;
+    #endif
 }
 
 void Pty::closePty()
 {
     pty()->close();
 }
+
+#endif // _WIN32
 

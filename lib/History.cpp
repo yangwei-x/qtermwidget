@@ -27,8 +27,14 @@
 #include <cstdlib>
 #include <cstdio>
 #include <sys/types.h>
+#ifndef _WIN32
 #include <sys/mman.h>
 #include <unistd.h>
+#else
+#include <io.h>
+#include <fcntl.h>
+#include <cstdlib>
+#endif
 #include <cerrno>
 
 #include <QtDebug>
@@ -111,25 +117,37 @@ HistoryFile::~HistoryFile()
 //to avoid this.
 void HistoryFile::map()
 {
-    Q_ASSERT( fileMap == nullptr );
-
-    fileMap = (char*)mmap( nullptr , length , PROT_READ , MAP_PRIVATE , ion , 0 );
-
-    //if mmap'ing fails, fall back to the read-lseek combination
-    if ( fileMap == MAP_FAILED )
-    {
-            readWriteBalance = 0;
-            fileMap = nullptr;
-            //qDebug() << __FILE__ << __LINE__ << ": mmap'ing history failed.  errno = " << errno;
-    }
+  Q_ASSERT( fileMap == nullptr );
+  if (length == 0) return;
+#ifndef _WIN32
+  fileMap = (char*)mmap( nullptr , length , PROT_READ , MAP_PRIVATE , ion , 0 );
+  if ( fileMap == MAP_FAILED ) {
+    readWriteBalance = 0;
+    fileMap = nullptr;
+  }
+#else
+  fileMap = (char*)malloc(length);
+  if (!fileMap) {
+    readWriteBalance = 0;
+    return;
+  }
+  long rc = _lseek(ion,0,SEEK_SET);
+  if (rc < 0) { free(fileMap); fileMap=nullptr; return; }
+  int r = _read(ion,fileMap,length);
+  if (r < 0) { free(fileMap); fileMap=nullptr; return; }
+#endif
 }
 
 void HistoryFile::unmap()
 {
-    int result = munmap( fileMap , length );
-    Q_ASSERT( result == 0 ); Q_UNUSED( result )
-
-    fileMap = nullptr;
+  if (!fileMap) return;
+#ifndef _WIN32
+  int result = munmap( fileMap , length );
+  Q_ASSERT( result == 0 ); Q_UNUSED( result )
+#else
+  free(fileMap);
+#endif
+  fileMap = nullptr;
 }
 
 bool HistoryFile::isMapped() const
@@ -147,7 +165,12 @@ void HistoryFile::add(const unsigned char* bytes, int len)
   int rc = 0;
 
   rc = KDE_lseek(ion,length,SEEK_SET); if (rc < 0) { perror("HistoryFile::add.seek"); return; }
-  rc = write(ion,bytes,len);       if (rc < 0) { perror("HistoryFile::add.write"); return; }
+#ifdef _WIN32
+  rc = _write(ion,bytes,len);
+#else
+  rc = write(ion,bytes,len);
+#endif
+  if (rc < 0) { perror("HistoryFile::add.write"); return; }
   length += rc;
 }
 
@@ -172,8 +195,13 @@ void HistoryFile::get(unsigned char* bytes, int len, int loc)
 
       if (loc < 0 || len < 0 || loc + len > length)
         fprintf(stderr,"getHist(...,%d,%d): invalid args.\n",len,loc);
-      rc = KDE_lseek(ion,loc,SEEK_SET); if (rc < 0) { perror("HistoryFile::get.seek"); return; }
-      rc = read(ion,bytes,len);     if (rc < 0) { perror("HistoryFile::get.read"); return; }
+  rc = KDE_lseek(ion,loc,SEEK_SET); if (rc < 0) { perror("HistoryFile::get.seek"); return; }
+#ifdef _WIN32
+  rc = _read(ion,bytes,len);
+#else
+  rc = read(ion,bytes,len);
+#endif
+  if (rc < 0) { perror("HistoryFile::get.read"); return; }
   }
 }
 

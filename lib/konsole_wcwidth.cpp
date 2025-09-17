@@ -15,6 +15,34 @@
 #include <cwchar>
 #endif
 
+#ifdef _WIN32
+// Some Windows environments with MinGW may not declare wcwidth. Provide a simple implementation.
+// This is a fallback and may not cover full Unicode East Asian Width rules.
+extern "C" int wcwidth(wchar_t ucs)
+{
+    // Control characters
+    if (ucs == 0) return 0;
+    if (ucs < 32 || (ucs >= 0x7f && ucs < 0xa0)) return -1;
+    // Basic approximation: treat BMP characters below 0x1100 as width 1
+    if (ucs < 0x1100) return 1;
+    // East Asian Wide / Fullwidth ranges (simplified)
+    if (ucs >= 0x1100 && (
+        ucs <= 0x115f || // Hangul Jamo init. consonants
+        ucs == 0x2329 || ucs == 0x232a ||
+        (ucs >= 0x2e80 && ucs <= 0xa4cf && ucs != 0x303f) || // CJK ... Yi
+        (ucs >= 0xac00 && ucs <= 0xd7a3) || // Hangul Syllables
+        (ucs >= 0xf900 && ucs <= 0xfaff) || // CJK Compatibility Ideographs
+        (ucs >= 0xfe10 && ucs <= 0xfe19) || // Vertical forms
+        (ucs >= 0xfe30 && ucs <= 0xfe6f) || // CJK Compatibility Forms
+        (ucs >= 0xff00 && ucs <= 0xff60) || // Fullwidth Forms
+        (ucs >= 0xffe0 && ucs <= 0xffe6) ||
+        (ucs >= 0x20000 && ucs <= 0x2fffd) ||
+        (ucs >= 0x30000 && ucs <= 0x3fffd)))
+        return 2;
+    return 1;
+}
+#endif
+
 #include "konsole_wcwidth.h"
 
 int konsole_wcwidth(wchar_t ucs)

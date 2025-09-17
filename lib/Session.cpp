@@ -28,6 +28,13 @@
 
 // Standard
 #include <cstdlib>
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <signal.h>
+#include <sys/types.h>
+#include <unistd.h>
+#endif
 
 // Qt
 #include <QApplication>
@@ -87,9 +94,13 @@ Session::Session(QObject* parent) :
     //create teletype for I/O with shell process (default path) if PTY backend present
 #ifdef QTERMWIDGET_HAVE_PTY
     _shellProcess = createPty(this);
+#if !defined(_WIN32)
     ptySlaveFd = _shellProcess->pty()->slaveFd();
 #else
-    _shellProcess = nullptr; // PTY disabled (e.g. Windows build without ConPTY)
+    ptySlaveFd = -1; // Not exposed in Windows stub
+#endif
+#else
+    _shellProcess = nullptr; // PTY disabled
     ptySlaveFd = -1;
 #endif
 
@@ -561,20 +572,26 @@ void Session::refresh()
 bool Session::sendSignal(int signal)
 {
     if (processId() <= 0)
-    {
         return false;
+#ifdef _WIN32
+    // Windows: no POSIX signals, try to terminate process for SIGKILL, else do nothing
+    if (signal == 9 /*SIGKILL*/ || signal == 15 /*SIGTERM*/) {
+        HANDLE hProcess = OpenProcess(PROCESS_TERMINATE, FALSE, (DWORD)_shellProcess->processId());
+        if (hProcess) {
+            BOOL res = TerminateProcess(hProcess, 1);
+            CloseHandle(hProcess);
+            return res ? _shellProcess->waitForFinished(1000) : false;
+        }
     }
-
+    // SIGHUP and other signals: not supported
+    return false;
+#else
     int result = ::kill(static_cast<pid_t>(_shellProcess->processId()), signal);
-
-     if ( result == 0 )
-     {
-         return _shellProcess->waitForFinished(1000);
-     }
-     else
-     {
-         return false;
-     }
+    if ( result == 0 )
+        return _shellProcess->waitForFinished(1000);
+    else
+        return false;
+#endif
 }
 
 void Session::close()
@@ -584,13 +601,16 @@ void Session::close()
 
     if (isRunning())
     {
+#ifdef _WIN32
+        // On Windows, just try to terminate the process
+        sendSignal(9); // SIGKILL equivalent
+        QTimer::singleShot(1, this, SIGNAL(finished()));
+#else
         // Try SIGHUP, and if unsuccessful, do a hard kill.
-        // This is the sequence used by most other terminal emulators like xterm, gnome-terminal, ...
         if (sendSignal(SIGHUP))
         {
             return;
         }
-
         qWarning() << "Process " << processId() << " did not die with SIGHUP";
         _shellProcess->closePty();
         if (!_shellProcess->waitForFinished(1000))
@@ -602,6 +622,7 @@ void Session::close()
                 QTimer::singleShot(1, this, SIGNAL(finished()));
             }
         }
+#endif
     }
     else
     {

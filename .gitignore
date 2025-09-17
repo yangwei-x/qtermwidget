@@ -5,3 +5,5 @@ build
 
 git.diff
 **/.vscode
+
+CMakeLists.txt.user

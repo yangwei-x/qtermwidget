@@ -26,11 +26,15 @@
 // Own
 #include "BlockArray.h"
 
-// System
+
+#include <cstdio>
+#ifdef _WIN32
+#include <windows.h>
+#else
 #include <sys/mman.h>
 #include <sys/param.h>
 #include <unistd.h>
-#include <cstdio>
+#endif
 
 
 using namespace Konsole;
@@ -47,8 +51,16 @@ BlockArray::BlockArray()
         length(0)
 {
     // lastmap_index = index = current = size_t(-1);
+
     if (blocksize == 0) {
-        blocksize = ((sizeof(Block) / getpagesize()) + 1) * getpagesize();
+#ifdef _WIN32
+        SYSTEM_INFO si;
+        GetSystemInfo(&si);
+        int pagesize = si.dwPageSize;
+#else
+        int pagesize = getpagesize();
+#endif
+        blocksize = ((sizeof(Block) / pagesize) + 1) * pagesize;
     }
 
 }
@@ -149,28 +161,50 @@ const Block * BlockArray::at(size_t i)
     size_t j = i; // (current - (index - i) + (index/size+1)*size) % size ;
 
     Q_ASSERT(j < size);
+
     unmap();
-
+#ifdef _WIN32
+    // On Windows, just allocate memory and read from file
+    Block *block = (Block *)malloc(blocksize);
+    if (!block) {
+        perror("malloc");
+        return nullptr;
+    }
+    int rc = _lseek(ion, j * blocksize, SEEK_SET);
+    if (rc < 0) {
+        perror("BlockArray::at.seek");
+        free(block);
+        return nullptr;
+    }
+    rc = _read(ion, block, blocksize);
+    if (rc < 0) {
+        perror("BlockArray::at.read");
+        free(block);
+        return nullptr;
+    }
+#else
     Block * block = (Block *)mmap(nullptr, blocksize, PROT_READ, MAP_PRIVATE, ion, j * blocksize);
-
     if (block == (Block *)-1) {
         perror("mmap");
         return nullptr;
     }
-
+#endif
     lastmap = block;
     lastmap_index = i;
-
     return block;
 }
 
 void BlockArray::unmap()
 {
     if (lastmap) {
+#ifdef _WIN32
+        free(lastmap);
+#else
         int res = munmap((char *)lastmap, blocksize);
         if (res < 0) {
             perror("munmap");
         }
+#endif
     }
     lastmap = nullptr;
     lastmap_index = size_t(-1);
@@ -229,9 +263,17 @@ bool BlockArray::setHistorySize(size_t newsize)
         size = newsize;
         return false;
     } else {
-        decreaseBuffer(newsize);
-        int res = ftruncate(ion, length*blocksize);
-        Q_UNUSED (res);
+    decreaseBuffer(newsize);
+#ifdef _WIN32
+    // ftruncate is not available; use _chsize (file descriptor) on Windows/MinGW
+    // length * blocksize should fit into a long for _chsize; if not, history size is huge.
+    long newLen = static_cast<long>(length * blocksize);
+    int res = _chsize(ion, newLen);
+    Q_UNUSED(res);
+#else
+    int res = ftruncate(ion, length*blocksize);
+    Q_UNUSED (res);
+#endif
         size = newsize;
 
         return true;
