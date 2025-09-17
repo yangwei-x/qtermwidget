@@ -26,9 +26,12 @@
 // Standard
 #include <cstdio>
 #include <cstdlib>
-#include <unistd.h>
 #include <cstring>
 #include <cctype>
+
+#ifndef _WIN32
+#include <unistd.h>
+#endif
 
 // Qt
 #include <QTextStream>

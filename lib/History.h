@@ -353,6 +353,13 @@ public:
 
   // custom new operator to allocate memory from custom pool instead of heap
   static void *operator new( size_t size, CompactHistoryBlockList& blockList);
+  // matching placement delete to satisfy MSVC and free pool on construction failure
+  static void operator delete(void *ptr, CompactHistoryBlockList& blockList)
+  {
+      if (ptr) {
+          blockList.deallocate(ptr);
+      }
+  }
   static void operator delete( void *) { /* do nothing, deallocation from pool is done in destructor*/ } ;
 
   virtual void getCharacters(Character* array, int length, int startColumn) ;

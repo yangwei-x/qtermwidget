@@ -102,19 +102,48 @@ bool PtyConPty::startProcess(const QString& program, const QStringList& argument
         return false;
     }
 
-    // Prepare command line - ensure .exe extension on Windows
-    QString actualProgram = program;
-    if (!program.contains('.') && !program.contains('\\') && !program.contains('/')) {
-        if (program == "cmd") {
-            actualProgram = "C:\\Windows\\System32\\cmd.exe";
+    // Resolve program and build command line safely
+    QString exePath = program;
+    if (!exePath.contains('\\') && !exePath.contains('/') && !exePath.endsWith(QLatin1String(".exe"), Qt::CaseInsensitive)) {
+        if (exePath.compare(QLatin1String("cmd"), Qt::CaseInsensitive) == 0) {
+            exePath = QLatin1String("C:/Windows/System32/cmd.exe");
         } else {
-            actualProgram += ".exe";
+            exePath += QLatin1String(".exe");
         }
     }
 
-    QString cmdLine = actualProgram;
-    for (const QString& arg : arguments) {
-        cmdLine += " " + arg;
+    auto quoteArg = [](const QString &s){
+        // 最小化 Windows 参数引用：检测空白或特殊字符并进行简单转义
+        if (s.isEmpty()) return QStringLiteral("\"\"");
+        bool need = false;
+        for (QChar c : s) {
+            if (c.isSpace() || c == QLatin1Char('"') || c == QLatin1Char('\\') ||
+                c == QLatin1Char('^') || c == QLatin1Char('&') || c == QLatin1Char('|') ||
+                c == QLatin1Char('<') || c == QLatin1Char('>')) {
+                need = true; break;
+            }
+        }
+        if (!need) return s;
+        QString esc;
+        esc.reserve(s.size() * 2);
+        for (QChar c : s) {
+            if (c == QLatin1Char('\\')) esc += QLatin1String("\\\\");
+            else if (c == QLatin1Char('"')) esc += QLatin1String("\\\"");
+            else esc += c;
+        }
+        return QStringLiteral("\"") + esc + QStringLiteral("\"");
+    };
+
+    QString cmdLine;
+    // If first argument is the shell itself (e.g., cmd /c ...), include it in cmdline
+    if (!arguments.isEmpty()) {
+        QStringList parts;
+        parts.reserve(1 + arguments.size());
+        parts << quoteArg(exePath);
+        for (const QString &a : arguments) parts << quoteArg(a);
+        cmdLine = parts.join(QLatin1Char(' '));
+    } else {
+        cmdLine = quoteArg(exePath);
     }
 
     // Prepare startup info
@@ -148,7 +177,8 @@ bool PtyConPty::startProcess(const QString& program, const QStringList& argument
     si.StartupInfo.dwFlags = EXTENDED_STARTUPINFO_PRESENT;
 
     // Create the process
-    std::wstring cmdLineW = (actualProgram + " " + arguments.join(' ')).toStdWString();
+    std::wstring appNameW = exePath.toStdWString();
+    std::wstring cmdLineW = cmdLine.toStdWString();
     std::wstring workingDirW = m_workingDir.isEmpty() ? std::wstring() : m_workingDir.toStdWString();
 
     // Build environment block from QStringList (VAR=VAL) if provided
@@ -176,8 +206,8 @@ bool PtyConPty::startProcess(const QString& program, const QStringList& argument
     if (!envBlock.empty()) createFlags |= CREATE_UNICODE_ENVIRONMENT;
 
     BOOL success = CreateProcessW(
-        nullptr,                           // lpApplicationName
-        const_cast<LPWSTR>(cmdLineW.data()), // lpCommandLine
+        appNameW.c_str(),                  // lpApplicationName
+        const_cast<LPWSTR>(cmdLineW.data()), // lpCommandLine (mutable)
         nullptr,                           // lpProcessAttributes
         nullptr,                           // lpThreadAttributes
         TRUE,                              // bInheritHandles
@@ -194,7 +224,7 @@ bool PtyConPty::startProcess(const QString& program, const QStringList& argument
 
     if (!success) {
         DWORD error = GetLastError();
-        qWarning() << "Failed to create process:" << error << "for command:" << (actualProgram + " " + arguments.join(' '));
+        qWarning() << "Failed to create process:" << error << "for executable:" << exePath << "cmdline:" << cmdLine;
         return false;
     }
 

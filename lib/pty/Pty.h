@@ -46,7 +46,6 @@ public slots:
 
 signals:
     void receivedData(const char* buffer, int length);
-    void finished(int exitCode, QProcess::ExitStatus exitStatus);
 
 private slots:
     void dataReceived();

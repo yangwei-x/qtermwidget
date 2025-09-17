@@ -24,7 +24,10 @@
 
 #include "Session.h"
 // Own
+#ifdef QTERMWIDGET_HAVE_PTY
 #include "PtyFactory.h"
+#include "Pty.h"
+#endif
 
 // Standard
 #include <cstdlib>
@@ -45,7 +48,6 @@
 #include <QtDebug>
 #include <QRegularExpression>
 
-#include "Pty.h"
 //#include "kptyprocess.h"
 #include "TerminalDisplay.h"
 #include "ShellCommand.h"
@@ -285,11 +287,18 @@ void Session::run()
      * their computing time on any system - especially with the problem on arch linux being there too.
      */
     QString exec = QString::fromLocal8Bit(QFile::encodeName(_program));
-    // if 'exec' is not specified, fall back to default shell.  if that
-    // is not set then fall back to /bin/sh
-
-    // here we expect full path. If there is no fullpath let's expect it's
-    // a custom shell (eg. python, etc.) available in the PATH.
+    // 选择默认 shell：Windows 与 POSIX 分开处理
+#ifdef _WIN32
+    // 在 Windows 上，如果程序未指定或是类 POSIX 路径，则回退到 cmd.exe
+    if (exec.isEmpty() || exec.startsWith(QLatin1Char('/'))) {
+        QString comspec = QString::fromLocal8Bit(qgetenv("ComSpec"));
+        if (comspec.isEmpty()) {
+            comspec = QStringLiteral("C:/Windows/System32/cmd.exe");
+        }
+        exec = comspec;
+    }
+#else
+    // 如果是绝对路径或为空，则按 POSIX 逻辑回退到 /bin/sh 或 $SHELL
     if (exec.startsWith(QLatin1Char('/')) || exec.isEmpty())
     {
         const QString defaultShell{QLatin1String("/bin/sh")};
@@ -305,13 +314,14 @@ void Session::run()
             exec = defaultShell;
         }
     }
+#endif
 
     // _arguments sometimes contain ("") so isEmpty()
     // or count() does not work as expected...
     QString argsTmp(_arguments.join(QLatin1Char(' ')).trimmed());
     QStringList arguments;
     if (argsTmp.length())
-        arguments << _arguments;
+        arguments = _arguments;
 
     QString cwd = QDir::currentPath();
     if (!_initialWorkingDir.isEmpty()) {

@@ -25,8 +25,12 @@
 // System
 #include <cstdio>
 #include <cstdlib>
-#include <unistd.h>
 #include <string>
+
+// unistd.h is POSIX-only; it's not needed on Windows for this file
+#ifndef _WIN32
+#include <unistd.h>
+#endif
 
 // Qt
 #include <QApplication>

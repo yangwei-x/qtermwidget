@@ -36,6 +36,12 @@ set(QT_MINIMUM_VERSION "6.6.0")
 set(LXQTBT_MINIMUM_VERSION "2.2.0")
 set(QTERMWIDGET_SKIP_LXQT_BUILD_TOOLS ON)
 # Respect options defaults set below; do not force-enable features here.
+
+if (WIN32)
+  message(STATUS "Building on Windows - enabling ConPTY support")
+  set(QTERMWIDGET_ENABLE_CONPTY ON)
+endif()
+
 set(BUILD_EXAMPLE ON)
 
 option(QTERMWIDGET_SKIP_LXQT_BUILD_TOOLS "Build without lxqt2-build-tools (disables translations/pkg-config helper)" OFF)
@@ -139,6 +145,10 @@ if(QTERMWIDGET_ENABLE_PTY)
             list(APPEND SRCS
                 lib/pty/PtyConPty_win.cpp
                 lib/pty/PtyFactory_win.cpp
+                lib/pty/Pty_win.cpp
+                lib/pty/kpty_win.cpp
+                lib/pty/kptyprocess_win.cpp
+                lib/pty/kptydevice_win.cpp
             )
             set(QTERMWIDGET_HAVE_PTY 1)
         else()
@@ -169,11 +179,8 @@ if(QTERMWIDGET_ENABLE_PTY)
         # On POSIX we moc the real Pty (has Q_OBJECT) and related headers.
         list(APPEND HDRS lib/pty/Pty.h lib/pty/kptydevice.h lib/pty/kptyprocess.h lib/pty/pty_posix.h)
     elseif(WIN32 AND QTERMWIDGET_ENABLE_CONPTY)
-        # On Windows the stub Pty.h has Q_OBJECT for signals; add it to HDRS for moc generation.
-        list(APPEND HDRS lib/pty/Pty.h)
-        if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/lib/pty/pty_windows.h)
-            list(APPEND HDRS lib/pty/pty_windows.h)
-        endif()
+        # On Windows the Pty base and KPty* classes have Q_OBJECT; add to HDRS for moc generation.
+        list(APPEND HDRS lib/pty/Pty.h lib/pty/kptyprocess.h lib/pty/kptydevice.h)
     endif()
 endif()
 
@@ -312,9 +319,15 @@ target_compile_definitions(${QTERMWIDGET_LIBRARY_NAME}
         "KB_LAYOUT_DIR=\"${KB_LAYOUT_DIR}\""
         "COLORSCHEMES_DIR=\"${COLORSCHEMES_DIR}\""
         "TRANSLATIONS_DIR=\"${TRANSLATIONS_DIR}\""
-        "HAVE_POSIX_OPENPT"
-        "HAVE_SYS_TIME_H"
 )
+
+if(UNIX AND NOT WIN32)
+    target_compile_definitions(${QTERMWIDGET_LIBRARY_NAME}
+        PRIVATE
+            "HAVE_POSIX_OPENPT"
+            "HAVE_SYS_TIME_H"
+    )
+endif()
 
 if(QTERMWIDGET_HAVE_PTY)
     target_compile_definitions(${QTERMWIDGET_LIBRARY_NAME} PRIVATE "QTERMWIDGET_HAVE_PTY")
