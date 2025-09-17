@@ -135,8 +135,11 @@ if(QTERMWIDGET_ENABLE_PTY)
         set(QTERMWIDGET_HAVE_PTY 1)
     elseif(WIN32)
         if(QTERMWIDGET_ENABLE_CONPTY)
-            # Windows ConPTY scaffold uses same factory file for now
-            list(APPEND SRCS lib/pty/PtyFactory_posix.cpp lib/pty/Pty.cpp)
+            # Use Windows-specific ConPTY implementation and factory
+            list(APPEND SRCS
+                lib/pty/PtyConPty_win.cpp
+                lib/pty/PtyFactory_win.cpp
+            )
             set(QTERMWIDGET_HAVE_PTY 1)
         else()
             message(STATUS "qtermwidget: PTY backend disabled on Windows (no ConPTY)")
@@ -166,8 +169,8 @@ if(QTERMWIDGET_ENABLE_PTY)
         # On POSIX we moc the real Pty (has Q_OBJECT) and related headers.
         list(APPEND HDRS lib/pty/Pty.h lib/pty/kptydevice.h lib/pty/kptyprocess.h lib/pty/pty_posix.h)
     elseif(WIN32 AND QTERMWIDGET_ENABLE_CONPTY)
-        # On Windows the stub Pty.h has no Q_OBJECT; do NOT add it to HDRS (avoids moc generation).
-        # If a future Windows-specific header with Q_OBJECT is added, list it here explicitly.
+        # On Windows the stub Pty.h has Q_OBJECT for signals; add it to HDRS for moc generation.
+        list(APPEND HDRS lib/pty/Pty.h)
         if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/lib/pty/pty_windows.h)
             list(APPEND HDRS lib/pty/pty_windows.h)
         endif()
