@@ -310,7 +310,6 @@ void Session::run()
     // or count() does not work as expected...
     QString argsTmp(_arguments.join(QLatin1Char(' ')).trimmed());
     QStringList arguments;
-    arguments << exec;
     if (argsTmp.length())
         arguments << _arguments;
 

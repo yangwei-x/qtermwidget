@@ -7,7 +7,7 @@
 namespace Konsole {
 
 // Create a platform-appropriate Pty instance. Caller owns the returned pointer.
-Pty* createPty(QObject* parent = nullptr);
+QTERMWIDGET_EXPORT Pty* createPty(QObject* parent = nullptr);
 
 }
 

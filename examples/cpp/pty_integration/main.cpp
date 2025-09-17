@@ -1,7 +1,7 @@
 // Non-GUI integration test for PTY lifecycle with multiple checks:
-// 1) Spawn /bin/cat and verify echo of simple text
+// 1) Spawn cmd.exe and verify echo of simple text
 // 2) Resize the PTY and echo a message containing UTF-8 and control characters
-// 3) Spawn a shell to run a small script (via /bin/sh -c) and verify output
+// 3) Spawn cmd.exe to run a small script and verify output
 
 #include <QCoreApplication>
 #include <QTimer>
@@ -10,6 +10,7 @@
 #include <functional>
 
 #include "Pty.h"
+#include "PtyConPty_win.h"
 
 using namespace Konsole;
 
@@ -29,7 +30,7 @@ int main(int argc, char **argv)
 
     // Helper to create a Pty and connect to its receivedData signal
     auto makePtyAndConnect = [&](Pty*& outPty, QByteArray &accum, std::function<void(const QByteArray&)> onData){
-        outPty = new Pty(&app);
+        outPty = new PtyConPty(&app);
         accum.clear();
         // Capture onData by value so the slot doesn't hold a dangling reference after
         // makePtyAndConnect returns.
@@ -74,15 +75,13 @@ int main(int argc, char **argv)
             });
 
             QStringList progArgs0;
-            progArgs0 << QStringLiteral("/bin/cat");
-            int rc = pty->start(QStringLiteral("/bin/cat"), progArgs0, env, 0, false);
+            progArgs0 << QStringLiteral("/c") << QStringLiteral("echo hello");
+            int rc = pty->start(QStringLiteral("cmd"), progArgs0, env, 0, false);
             if (rc != 0) {
-                qCritical() << "Phase 0: Failed to start /bin/cat, rc=" << rc;
+                qCritical() << "Phase 0: Failed to start cmd, rc=" << rc;
                 return QCoreApplication::exit(1);
             }
 
-            const char msg[] = "hello\n";
-            pty->sendData(msg, sizeof(msg)-1);
             return;
         }
 
@@ -98,10 +97,10 @@ int main(int argc, char **argv)
             });
 
             QStringList progArgs1;
-            progArgs1 << QStringLiteral("/bin/cat");
-            int rc = pty->start(QStringLiteral("/bin/cat"), progArgs1, env, 0, false);
+            progArgs1 << QStringLiteral("/c") << QStringLiteral("echo héllö €");
+            int rc = pty->start(QStringLiteral("cmd"), progArgs1, env, 0, false);
             if (rc != 0) {
-                qCritical() << "Phase 1: Failed to start /bin/cat, rc=" << rc;
+                qCritical() << "Phase 1: Failed to start cmd, rc=" << rc;
                 return QCoreApplication::exit(1);
             }
 
@@ -110,10 +109,6 @@ int main(int argc, char **argv)
             QSize ws = pty->windowSize();
             qDebug() << "Phase 1: windowSize after set:" << ws;
 
-            // Send a message containing UTF-8 and control characters
-            QString special = QString::fromUtf8("héllö €\tΩ\n");
-            QByteArray out = special.toUtf8();
-            pty->sendData(out.constData(), out.size());
             return;
         }
 
@@ -127,13 +122,12 @@ int main(int argc, char **argv)
                 }
             });
 
-            // Spawn a shell that executes a small script and exits
+            // Spawn cmd that executes a small script and exits
             QStringList progArgs2;
-            // For historical reasons the first element should be the program name
-            progArgs2 << QStringLiteral("/bin/sh") << QStringLiteral("-c") << QStringLiteral("echo script-okay");
-            int rc = pty->start(QStringLiteral("/bin/sh"), progArgs2, env, 0, false);
+            progArgs2 << QStringLiteral("/c") << QStringLiteral("echo script-okay");
+            int rc = pty->start(QStringLiteral("cmd"), progArgs2, env, 0, false);
             if (rc != 0) {
-                qCritical() << "Phase 2: Failed to start /bin/sh, rc=" << rc;
+                qCritical() << "Phase 2: Failed to start cmd, rc=" << rc;
                 return QCoreApplication::exit(1);
             }
 

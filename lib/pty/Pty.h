@@ -30,17 +30,20 @@ public:
     virtual char erase() const { return '\b'; }
     virtual int foregroundProcessGroup() const { return 0; }
     virtual void closePty() {}
-    virtual void setUtf8Mode(bool) {}
-    virtual void lockPty(bool) {}
-    virtual void sendData(const char*, int) {}
     virtual QProcess::ProcessState state() const { return QProcess::NotRunning; }
     virtual qint64 processId() const { return 0; }
     virtual bool waitForFinished(int = 30000) { return true; }
     virtual QProcess::ExitStatus exitStatus() const { return QProcess::NormalExit; }
     virtual void setWorkingDirectory(const QString&) {}
 
+public slots:
+    virtual void sendData(const char* buffer, int length) {}
+    virtual void lockPty(bool lock) {}
+    virtual void setUtf8Mode(bool on) {}
+
 signals:
     void receivedData(const char* buffer, int length);
+    void finished(int exitCode, QProcess::ExitStatus exitStatus);
 
 private:
     int m_rows = 24;
