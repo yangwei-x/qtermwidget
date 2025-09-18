@@ -9,6 +9,7 @@
 #include <QPushButton>
 #include <QLabel>
 #include <QComboBox>
+#include <QInputDialog>
 
 #include "qtermwidget.h"
 #include "Session.h" // for Konsole::Session forward usage inside openSerial impl
@@ -21,7 +22,7 @@ int main(int argc, char **argv) {
     parser.setApplicationDescription(QStringLiteral("Minimal serial/ssh console using qtermwidget"));
     parser.addHelpOption();
     QCommandLineOption modeOpt(QStringList{QStringLiteral("m"),QStringLiteral("mode")}, QStringLiteral("Mode: serial or ssh"), QStringLiteral("mode"), QStringLiteral("serial"));
-    QCommandLineOption deviceOpt(QStringList{QStringLiteral("d"),QStringLiteral("device")}, QStringLiteral("Serial device path (e.g. /dev/ttyACM0) or SSH host"), QStringLiteral("device"));
+    QCommandLineOption deviceOpt(QStringList{QStringLiteral("d"),QStringLiteral("device")}, QStringLiteral("Serial device path (e.g. /dev/ttyACM0) or SSH host (user@host[:port])"), QStringLiteral("device"));
     QCommandLineOption baudOpt(QStringList{QStringLiteral("b"),QStringLiteral("baud")}, QStringLiteral("Baud rate (serial only)"), QStringLiteral("baud"), QStringLiteral("115200"));
     parser.addOption(modeOpt);
     parser.addOption(deviceOpt);
@@ -89,18 +90,50 @@ int main(int argc, char **argv) {
 #endif
         } else { // SSH
             if(dev.isEmpty()) {
-                QMessageBox::warning(&window, QObject::tr("Input"), QObject::tr("Please specify an SSH host (user@host)."));
+                QMessageBox::warning(&window, QObject::tr("Input"), QObject::tr("Please specify an SSH host (user@host[:port])."));
                 return;
             }
-            // Launch ssh via PTY
-            QStringList args; // host becomes argument to ssh
-            args << QStringLiteral("-tt") << dev; // force pseudo-tty allocation for password prompt
-            if(term->openPty(QStringLiteral("ssh"), args)) {
-                statusLabel->setText(QObject::tr("SSH: %1").arg(dev));
+
+#ifdef QTERMWIDGET_HAVE_LIBSSH
+            // Parse user@host[:port]
+            QString user;
+            QString hostPort = dev;
+            int atIdx = dev.indexOf('@');
+            if(atIdx != -1) {
+                user = dev.left(atIdx);
+                hostPort = dev.mid(atIdx+1);
+            }
+            QString host = hostPort;
+            int port = 22;
+            int colonIdx = hostPort.lastIndexOf(':');
+            if(colonIdx != -1) {
+                host = hostPort.left(colonIdx);
+                bool ok=false; int p = hostPort.mid(colonIdx+1).toInt(&ok);
+                if(ok && p>0 && p<65536) port = p;
+            }
+
+            // Ask for password (optional)
+            bool okPwd=false;
+            QString pwd = QInputDialog::getText(&window,
+                                                QObject::tr("SSH Password"),
+                                                QObject::tr("Password for %1@%2:").arg(user.isEmpty()? qgetenv("USER"):user, host),
+                                                QLineEdit::Password,
+                                                QString(),
+                                                &okPwd);
+            if(!okPwd) return; // cancelled
+
+            if(term->openSSH(host, port, user, pwd)) {
+                statusLabel->setText(QObject::tr("SSH: %1@%2:%3").arg(user.isEmpty()? QString::fromLocal8Bit(qgetenv("USER")) : user,
+                                                                        host,
+                                                                        QString::number(port)));
             } else {
                 statusLabel->setText(QObject::tr("Failed"));
-                QMessageBox::critical(&window, QObject::tr("SSH Failed"), QObject::tr("Could not start ssh to %1").arg(dev));
+                QMessageBox::critical(&window, QObject::tr("SSH Failed"), QObject::tr("Could not open SSH to %1").arg(dev));
             }
+#else
+            QMessageBox::critical(&window, QObject::tr("SSH Support Missing"),
+                                  QObject::tr("This build of qtermwidget was compiled without libssh support."));
+#endif
         }
     });
 

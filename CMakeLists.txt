@@ -56,6 +56,9 @@ endif()
 # Optional SerialPort (direct serial device support)
 option(QTERMWIDGET_ENABLE_SERIAL "Enable serial device support via QSerialPort" ON)
 
+# Optional SSH support via bundled libssh submodule
+option(QTERMWIDGET_ENABLE_SSH "Enable SSH support via libssh" ON)
+
 # Optional Windows ConPTY backend (experimental scaffold). Default OFF.
 option(QTERMWIDGET_ENABLE_CONPTY "Enable Windows ConPTY backend (experimental)" ON)
 option(QTERMWIDGET_ENABLE_PTY "Enable POSIX PTY backend (disable for Windows builds without ConPTY)" ON)
@@ -71,6 +74,22 @@ endif()
 
 if(USE_UTF8PROC)
     find_package(Utf8Proc REQUIRED)
+endif()
+
+# libssh (SSH) support
+if(QTERMWIDGET_ENABLE_SSH)
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/external/libssh/CMakeLists.txt)
+        message(STATUS "qtermwidget: SSH support enabled (external/libssh)")
+        # libssh uses its own options; ensure it builds as a static or shared as default
+        set(WITH_GEX TRUE CACHE BOOL "Enable GEX in libssh" FORCE)
+        set(WITH_GSSAPI OFF CACHE BOOL "Disable GSSAPI in libssh" FORCE)
+        set(WITH_NACL OFF CACHE BOOL "Disable NaCl in libssh" FORCE)
+        set(WITH_ZLIB ON CACHE BOOL "Enable zlib in libssh" FORCE)
+        add_subdirectory(external/libssh EXCLUDE_FROM_ALL)
+        set(QTERMWIDGET_HAVE_LIBSSH 1)
+    else()
+        message(WARNING "qtermwidget: external/libssh not found; SSH support disabled")
+    endif()
 endif()
 
 if(NOT QTERMWIDGET_SKIP_LXQT_BUILD_TOOLS)
@@ -126,6 +145,12 @@ set(SRCS
     lib/Vt102Emulation.cpp
 )
 
+if(QTERMWIDGET_HAVE_LIBSSH)
+    list(APPEND SRCS
+        lib/comm/SSHChannel.cpp
+    )
+endif()
+
 # Platform PTY sources
 if(QTERMWIDGET_ENABLE_PTY)
     if(UNIX AND NOT WIN32)
@@ -173,6 +198,12 @@ set(HDRS
     lib/TerminalDisplay.h
     lib/Vt102Emulation.h
 )
+
+if(QTERMWIDGET_HAVE_LIBSSH)
+    list(APPEND HDRS
+        lib/comm/SSHChannel.h
+    )
+endif()
 
 if(QTERMWIDGET_ENABLE_PTY)
     if(UNIX AND NOT WIN32)
@@ -230,12 +261,18 @@ lxqt_translate_ts(QTERMWIDGET_QM
 )
 
 add_library(${QTERMWIDGET_LIBRARY_NAME} SHARED ${SRCS} ${MOCS} ${UI_SRCS} ${QTERMWIDGET_QM})
-target_link_libraries(${QTERMWIDGET_LIBRARY_NAME} Qt6::Widgets)
+target_link_libraries(${QTERMWIDGET_LIBRARY_NAME} PUBLIC Qt6::Widgets)
 if(QTERMWIDGET_HAVE_QSERIALPORT)
     target_compile_definitions(${QTERMWIDGET_LIBRARY_NAME}
         PUBLIC QTERMWIDGET_HAVE_QSERIALPORT
         PRIVATE QTERMWIDGET_HAVE_QSERIALPORT)
-    target_link_libraries(${QTERMWIDGET_LIBRARY_NAME} Qt6::SerialPort)
+    target_link_libraries(${QTERMWIDGET_LIBRARY_NAME} PRIVATE Qt6::SerialPort)
+endif()
+if(QTERMWIDGET_HAVE_LIBSSH)
+    target_compile_definitions(${QTERMWIDGET_LIBRARY_NAME}
+        PUBLIC QTERMWIDGET_HAVE_LIBSSH
+        PRIVATE QTERMWIDGET_HAVE_LIBSSH)
+    target_link_libraries(${QTERMWIDGET_LIBRARY_NAME} PRIVATE ssh)
 endif()
 set_target_properties( ${QTERMWIDGET_LIBRARY_NAME} PROPERTIES
                        SOVERSION ${QTERMWIDGET_VERSION_MAJOR}
@@ -265,7 +302,7 @@ if (QTERMWIDGET_USE_UTEMPTER)
                 "HAVE_UTEMPTER"
         )
         find_library(UTEMPTER_LIB NAMES utempter ulog REQUIRED)
-        target_link_libraries(${QTERMWIDGET_LIBRARY_NAME} ${UTEMPTER_LIB})
+    target_link_libraries(${QTERMWIDGET_LIBRARY_NAME} PRIVATE ${UTEMPTER_LIB})
     endif()
 endif()
 
@@ -287,9 +324,7 @@ if (UTF8PROC_FOUND)
         INTERFACE
             ${UTF8PROC_INCLUDE_DIRS}
     )
-    target_link_libraries(${QTERMWIDGET_LIBRARY_NAME}
-        ${UTF8PROC_LIBRARIES}
-    )
+    target_link_libraries(${QTERMWIDGET_LIBRARY_NAME} PRIVATE ${UTF8PROC_LIBRARIES})
     string(APPEND PKG_CONFIG_REQ ", libutf8proc")
 endif()
 
@@ -362,11 +397,13 @@ install(FILES
     COMPONENT Devel
 )
 
+if(NOT QTERMWIDGET_HAVE_LIBSSH)
 install(EXPORT
     "${QTERMWIDGET_LIBRARY_NAME}-targets"
     DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${QTERMWIDGET_LIBRARY_NAME}"
     COMPONENT Devel
 )
+endif()
 
 install(FILES
     ${HDRS_DISTRIB} "${CMAKE_CURRENT_BINARY_DIR}/lib/qtermwidget_export.h" "${CMAKE_CURRENT_BINARY_DIR}/lib/qtermwidget_version.h"
@@ -426,10 +463,11 @@ install(TARGETS ${QTERMWIDGET_LIBRARY_NAME}
     COMPONENT Runtime
 )
 
+if(NOT QTERMWIDGET_HAVE_LIBSSH)
 export(TARGETS ${QTERMWIDGET_LIBRARY_NAME}
     FILE "${CMAKE_BINARY_DIR}/${QTERMWIDGET_LIBRARY_NAME}-targets.cmake"
-    EXPORT_LINK_INTERFACE_LIBRARIES
 )
+endif()
 # end of main library
 
 
@@ -437,9 +475,9 @@ export(TARGETS ${QTERMWIDGET_LIBRARY_NAME}
 if(BUILD_EXAMPLE)
     set(EXAMPLE_SRC examples/cpp/main.cpp)
     add_executable(example ${EXAMPLE_SRC})
-    target_link_libraries(example ${QTERMWIDGET_LIBRARY_NAME})
+    target_link_libraries(example ${QTERMWIDGET_LIBRARY_NAME} Qt6::Widgets)
     add_executable(pty_integration examples/cpp/pty_integration/main.cpp)
-    target_link_libraries(pty_integration ${QTERMWIDGET_LIBRARY_NAME})
+    target_link_libraries(pty_integration ${QTERMWIDGET_LIBRARY_NAME} Qt6::Widgets)
     install(TARGETS pty_integration RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
     # Enable CTest tests for examples
     include(CTest)
@@ -448,7 +486,7 @@ if(BUILD_EXAMPLE)
     set_tests_properties(pty_integration_test PROPERTIES TIMEOUT 10)
     if(QTERMWIDGET_HAVE_QSERIALPORT)
         add_executable(qTerm examples/cpp/qTerm/main.cpp)
-        target_link_libraries(qTerm ${QTERMWIDGET_LIBRARY_NAME})
+    target_link_libraries(qTerm ${QTERMWIDGET_LIBRARY_NAME} Qt6::Widgets)
         install(TARGETS qTerm RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
     endif()
 endif()

@@ -51,6 +51,9 @@
 #ifdef QTERMWIDGET_HAVE_QSERIALPORT
 #include "comm/SerialChannel.h"
 #endif
+#ifdef QTERMWIDGET_HAVE_LIBSSH
+#include "comm/SSHChannel.h"
+#endif
 
 using namespace Konsole;
 
@@ -75,6 +78,10 @@ Session::Session(QObject* parent) :
 #ifdef QTERMWIDGET_HAVE_QSERIALPORT
     , _serialChannel(nullptr)
     , _serialActive(false)
+#endif
+#ifdef QTERMWIDGET_HAVE_LIBSSH
+    , _sshChannel(nullptr)
+    , _sshActive(false)
 #endif
 {
 #ifdef QTERMWIDGET_HAVE_PTY
@@ -144,6 +151,11 @@ bool Session::isRunning() const
 #ifdef QTERMWIDGET_HAVE_QSERIALPORT
     if(_serialActive && _serialChannel) {
         return _serialChannel->isRunning();
+    }
+#endif
+#ifdef QTERMWIDGET_HAVE_LIBSSH
+    if(_sshActive && _sshChannel) {
+        return _sshChannel->isRunning();
     }
 #endif
     return (_shellProcess != nullptr && _shellProcess->state() == QProcess::Running);
@@ -232,6 +244,11 @@ void Session::run()
 {
 #ifdef QTERMWIDGET_HAVE_QSERIALPORT
     if(_serialActive) {
+        return;
+    }
+#endif
+#ifdef QTERMWIDGET_HAVE_LIBSSH
+    if(_sshActive) {
         return;
     }
 #endif
@@ -828,6 +845,54 @@ bool Session::runSerial(const QString &devicePath,
         if(_serialChannel) {
             _serialChannel->sendData(QByteArray(data, len));
         }
+    });
+
+    emit started();
+    return true;
+}
+#endif
+
+#ifdef QTERMWIDGET_HAVE_LIBSSH
+bool Session::runSSH(const QString& host,
+                     int port,
+                     const QString& user,
+                     const QString& password,
+                     const QString& termName,
+                     int cols,
+                     int rows)
+{
+    if(_sshActive) {
+        return true;
+    }
+    if(!_sshChannel) {
+        _sshChannel = new SSHChannel(this);
+        connect(_sshChannel, &SSHChannel::receivedData, this, [this](const QByteArray &bytes){
+            onReceiveBlock(bytes.constData(), bytes.size());
+        });
+        connect(_sshChannel, &SSHChannel::error, this, [this](const QString &msg){
+            qWarning() << "SSHChannel error:" << msg;
+        });
+        connect(_sshChannel, &SSHChannel::closed, this, [this](){
+            _sshActive = false;
+            emit finished();
+        });
+    }
+
+    if(!_sshChannel->connectAndStart(host, port, user, password, termName, cols, rows)) {
+        return false;
+    }
+
+    _sshActive = true;
+
+    // Detach from PTY process I/O and hook emulation to SSH
+    if(_shellProcess) {
+        disconnect( _emulation,SIGNAL(sendData(const char *,int)),_shellProcess,
+                    SLOT(sendData(const char *,int)) );
+        disconnect( _shellProcess,SIGNAL(receivedData(const char *,int)),this,
+                    SLOT(onReceiveBlock(const char *,int)) );
+    }
+    connect(_emulation, &Emulation::sendData, this, [this](const char *data, int len){
+        if(_sshChannel) _sshChannel->sendData(QByteArray(data, len));
     });
 
     emit started();

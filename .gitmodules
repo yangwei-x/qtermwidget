@@ -1,0 +1,3 @@
+[submodule "external/libssh"]
+	path = external/libssh
+	url = https://github.com/canonical/libssh.git

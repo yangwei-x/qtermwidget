@@ -40,6 +40,7 @@ class Emulation;
 class Pty;
 class TerminalDisplay;
 class SerialChannel; // forward (Konsole namespace)
+class SSHChannel; // forward
 
 class Session : public QObject {
     Q_OBJECT
@@ -62,6 +63,16 @@ public:
                    int stopBits = 1,
                    int parity = 0,
                    bool flowControl = false);
+#endif
+
+#ifdef QTERMWIDGET_HAVE_LIBSSH
+    bool runSSH(const QString& host,
+                int port,
+                const QString& user,
+                const QString& password,
+                const QString& termName = QStringLiteral("xterm-256color"),
+                int cols = 80,
+                int rows = 24);
 #endif
 
     void setProfileKey(const QString & profileKey);
@@ -191,6 +202,10 @@ private:
 #ifdef QTERMWIDGET_HAVE_QSERIALPORT
     SerialChannel* _serialChannel { nullptr };
     bool _serialActive { false };
+#endif
+#ifdef QTERMWIDGET_HAVE_LIBSSH
+    SSHChannel* _sshChannel { nullptr };
+    bool _sshActive { false };
 #endif
 };
 

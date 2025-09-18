@@ -228,6 +228,15 @@ public:
      */
     bool openPty(const QString &program, const QStringList &arguments = QStringList());
 
+#ifdef QTERMWIDGET_HAVE_LIBSSH
+    /** Open an SSH session inside this terminal widget (requires libssh support). Returns true on success. */
+    bool openSSH(const QString &host,
+                 int port = 22,
+                 const QString &user = QString(),
+                 const QString &password = QString(),
+                 const QString &termName = QStringLiteral("xterm-256color"));
+#endif
+
     /**
      * Sets the shape of the keyboard cursor.  This is the cursor drawn
      * at the position in the terminal where keyboard input will appear.

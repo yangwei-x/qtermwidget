@@ -754,6 +754,24 @@ bool QTermWidget::openPty(const QString &program, const QStringList &arguments)
     return true;
 }
 
+#ifdef QTERMWIDGET_HAVE_LIBSSH
+bool QTermWidget::openSSH(const QString &host,
+                          int port,
+                          const QString &user,
+                          const QString &password,
+                          const QString &termName)
+{
+    if(!m_impl || !m_impl->m_session) return false;
+    // Compute current terminal size (cols x rows)
+    int cols = screenColumnsCount();
+    int rows = screenLinesCount();
+    if(cols <= 0) cols = 80;
+    if(rows <= 0) rows = 24;
+
+    return m_impl->m_session->runSSH(host, port, user, password, termName, cols, rows);
+}
+#endif
+
 #ifdef QTERMWIDGET_HAVE_QSERIALPORT
 bool QTermWidget::openSerial(const QString &devicePath,
                              int baudRate,
