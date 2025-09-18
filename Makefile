@@ -4,7 +4,7 @@
 #        make clean      # remove build directory
 
 BUILD_DIR := build
-CMAKE_ARGS := -DBUILD_EXAMPLE=ON -DQTERMWIDGET_USE_UTEMPTER=ON
+CMAKE_ARGS := -DBUILD_EXAMPLE=ON -DQTERMWIDGET_USE_UTEMPTER=ON -DQTERMWIDGET_ENABLE_SSH=ON
 
 .PHONY: all configure build qTerm clean
 

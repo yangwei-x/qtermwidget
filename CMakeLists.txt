@@ -76,19 +76,41 @@ if(USE_UTF8PROC)
     find_package(Utf8Proc REQUIRED)
 endif()
 
-# libssh (SSH) support
+# libssh (SSH) support: use an already-built system libssh (no submodule)
+set(QTERMWIDGET_HAVE_LIBSSH 0)
+unset(QTERMWIDGET_LIBSSH_TARGET)
+unset(QTERMWIDGET_LIBSSH_LIBRARIES)
+unset(QTERMWIDGET_LIBSSH_INCLUDE_DIRS)
 if(QTERMWIDGET_ENABLE_SSH)
-    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/external/libssh/CMakeLists.txt)
-        message(STATUS "qtermwidget: SSH support enabled (external/libssh)")
-        # libssh uses its own options; ensure it builds as a static or shared as default
-        set(WITH_GEX TRUE CACHE BOOL "Enable GEX in libssh" FORCE)
-        set(WITH_GSSAPI OFF CACHE BOOL "Disable GSSAPI in libssh" FORCE)
-        set(WITH_NACL OFF CACHE BOOL "Disable NaCl in libssh" FORCE)
-        set(WITH_ZLIB ON CACHE BOOL "Enable zlib in libssh" FORCE)
-        add_subdirectory(external/libssh EXCLUDE_FROM_ALL)
+    # Try CMake package first (common targets: ssh or libssh::libssh)
+    find_package(libssh CONFIG QUIET)
+    if(TARGET ssh)
+        set(QTERMWIDGET_LIBSSH_TARGET ssh)
+        set(QTERMWIDGET_HAVE_LIBSSH 1)
+    elseif(TARGET libssh::libssh)
+        set(QTERMWIDGET_LIBSSH_TARGET libssh::libssh)
         set(QTERMWIDGET_HAVE_LIBSSH 1)
     else()
-        message(WARNING "qtermwidget: external/libssh not found; SSH support disabled")
+        # Fallback to pkg-config
+        find_package(PkgConfig QUIET)
+        if(PkgConfig_FOUND)
+            pkg_check_modules(LIBSSH QUIET libssh)
+            if(LIBSSH_FOUND)
+                set(QTERMWIDGET_HAVE_LIBSSH 1)
+                set(QTERMWIDGET_LIBSSH_LIBRARIES ${LIBSSH_LINK_LIBRARIES})
+                set(QTERMWIDGET_LIBSSH_INCLUDE_DIRS ${LIBSSH_INCLUDE_DIRS})
+                message(STATUS "qtermwidget: Found libssh via pkg-config: ${LIBSSH_VERSION}")
+            endif()
+        endif()
+    endif()
+    if(NOT QTERMWIDGET_HAVE_LIBSSH)
+        message(FATAL_ERROR "libssh is required but was not found.\n"
+                           "Hints:\n"
+                           "  - Set CMAKE_PREFIX_PATH to the libssh install prefix so CMake can find targets 'ssh' or 'libssh::libssh'.\n"
+                           "  - Or set PKG_CONFIG_PATH to the directory containing libssh.pc.\n"
+                           "  - Or disable SSH with -DQTERMWIDGET_ENABLE_SSH=OFF.")
+    else()
+        message(STATUS "qtermwidget: SSH support enabled (external libssh)")
     endif()
 endif()
 
@@ -272,7 +294,16 @@ if(QTERMWIDGET_HAVE_LIBSSH)
     target_compile_definitions(${QTERMWIDGET_LIBRARY_NAME}
         PUBLIC QTERMWIDGET_HAVE_LIBSSH
         PRIVATE QTERMWIDGET_HAVE_LIBSSH)
-    target_link_libraries(${QTERMWIDGET_LIBRARY_NAME} PRIVATE ssh)
+    if(QTERMWIDGET_LIBSSH_TARGET)
+        target_link_libraries(${QTERMWIDGET_LIBRARY_NAME} PRIVATE ${QTERMWIDGET_LIBSSH_TARGET})
+    else()
+        if(QTERMWIDGET_LIBSSH_INCLUDE_DIRS)
+            target_include_directories(${QTERMWIDGET_LIBRARY_NAME} PRIVATE ${QTERMWIDGET_LIBSSH_INCLUDE_DIRS})
+        endif()
+        if(QTERMWIDGET_LIBSSH_LIBRARIES)
+            target_link_libraries(${QTERMWIDGET_LIBRARY_NAME} PRIVATE ${QTERMWIDGET_LIBSSH_LIBRARIES})
+        endif()
+    endif()
 endif()
 set_target_properties( ${QTERMWIDGET_LIBRARY_NAME} PROPERTIES
                        SOVERSION ${QTERMWIDGET_VERSION_MAJOR}
@@ -397,13 +428,11 @@ install(FILES
     COMPONENT Devel
 )
 
-if(NOT QTERMWIDGET_HAVE_LIBSSH)
 install(EXPORT
     "${QTERMWIDGET_LIBRARY_NAME}-targets"
     DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${QTERMWIDGET_LIBRARY_NAME}"
     COMPONENT Devel
 )
-endif()
 
 install(FILES
     ${HDRS_DISTRIB} "${CMAKE_CURRENT_BINARY_DIR}/lib/qtermwidget_export.h" "${CMAKE_CURRENT_BINARY_DIR}/lib/qtermwidget_version.h"
@@ -463,11 +492,9 @@ install(TARGETS ${QTERMWIDGET_LIBRARY_NAME}
     COMPONENT Runtime
 )
 
-if(NOT QTERMWIDGET_HAVE_LIBSSH)
 export(TARGETS ${QTERMWIDGET_LIBRARY_NAME}
     FILE "${CMAKE_BINARY_DIR}/${QTERMWIDGET_LIBRARY_NAME}-targets.cmake"
 )
-endif()
 # end of main library
 
 
