@@ -48,7 +48,7 @@
 #include "Screen.h"
 #include "TerminalCharacterDecoder.h"
 #include "ScreenWindow.h"
-#include "Session.h"
+#include "comm/Session.h"
 #include "TerminalDisplay.h"
 
 using namespace Konsole;

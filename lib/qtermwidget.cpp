@@ -24,7 +24,7 @@
 #include <QRegularExpression>
 
 #include "ColorTables.h"
-#include "Session.h"
+#include "comm/Session.h"
 #include "Screen.h"
 #include "ScreenWindow.h"
 #include "Emulation.h"

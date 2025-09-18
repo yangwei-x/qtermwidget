@@ -30,7 +30,7 @@
 #ifndef KPTYPROCESS_H
 #define KPTYPROCESS_H
 
-#include "kprocess.h"
+#include "comm/kprocess.h"
 #include "kptydevice.h"
 
 #include <csignal>

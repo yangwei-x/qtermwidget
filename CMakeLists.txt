@@ -112,14 +112,14 @@ set(SRCS
     lib/HistorySearch.cpp
     lib/KeyboardTranslator.cpp
     lib/konsole_wcwidth.cpp
-    lib/kprocess.cpp
-    lib/SerialChannel.cpp
+    lib/comm/kprocess.cpp
+    lib/comm/SerialChannel.cpp
     lib/qtermwidget.cpp
     lib/Screen.cpp
     lib/ScreenWindow.cpp
     lib/SearchBar.cpp
-    lib/Session.cpp
-    lib/ShellCommand.cpp
+    lib/comm/Session.cpp
+    lib/comm/ShellCommand.cpp
     lib/TerminalCharacterDecoder.cpp
     lib/TerminalDisplay.cpp
     lib/tools.cpp
@@ -164,12 +164,12 @@ set(HDRS
     lib/Emulation.h
     lib/Filter.h
     lib/HistorySearch.h
-    lib/kprocess.h
-    lib/SerialChannel.h
+    lib/comm/kprocess.h
+    lib/comm/SerialChannel.h
     lib/qtermwidget.h
     lib/ScreenWindow.h
     lib/SearchBar.h
-    lib/Session.h
+    lib/comm/Session.h
     lib/TerminalDisplay.h
     lib/Vt102Emulation.h
 )
@@ -341,7 +341,8 @@ generate_export_header(${QTERMWIDGET_LIBRARY_NAME}
 
 target_include_directories(${QTERMWIDGET_LIBRARY_NAME}
     PUBLIC
-    "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/lib>"
+        "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/lib/comm>"
+        "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/lib>"
         "$<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/lib>"
         "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/lib/pty>"
     INTERFACE

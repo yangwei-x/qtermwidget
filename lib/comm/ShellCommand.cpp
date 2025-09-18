@@ -42,7 +42,7 @@ ShellCommand::ShellCommand(const QString & fullCommand)
         QChar ch = fullCommand[i];
 
         const bool isLastChar = ( i == fullCommand.size() - 1 );
-        const bool isQuote = ( ch == QLatin1Char('\'') || ch == QLatin1Char('\"') );
+        const bool isQuote = ( ch == QLatin1Char('\'') || ch == QLatin1Char('"') );
 
         if ( !isLastChar && isQuote ) {
             inQuotes = !inQuotes;

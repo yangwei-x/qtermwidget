@@ -29,7 +29,7 @@
 
 
 #include "kptyprocess.h"
-#include "kprocess.h"
+#include "comm/kprocess.h"
 #include "kptydevice.h"
 
 #include <cstdlib>
